@@ -1,0 +1,1 @@
+export { default, PLUGIN_ID } from "./opencode/plugin.ts"

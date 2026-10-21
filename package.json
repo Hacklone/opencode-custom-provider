@@ -1,0 +1,45 @@
+{
+  "name": "@coool/opencode-custom-provider",
+  "version": "0.1.0",
+  "description": "OpenCode plugin: register custom OpenAI-compatible providers at runtime, keep their API keys in the safe store, and auto-load their model inventory from /v1/models.",
+  "license": "MIT",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./tui": "./src/tui.tsx",
+    "./rpc": "./src/rpc.ts"
+  },
+  "files": [
+    "src",
+    "tsconfig.json"
+  ],
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.32",
+    "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.5.17",
+    "@opentui/solid": ">=0.5.17",
+    "solid-js": ">=1.9.0"
+  },
+  "devDependencies": {
+    "@opentui/core": "^0.5.17",
+    "@opentui/solid": "^0.5.17",
+    "@types/node": "^26.0.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "solid-js": "1.9.12",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.4"
+  }
+}

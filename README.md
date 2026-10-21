@@ -5,15 +5,16 @@ OpenAI-compatible endpoints as providers — no config files, everything from
 the TUI or the web UI.
 
 ```
-❯ /custom-connect add id=llama name="My LlamaBox" base=http://127.0.0.1:8080/v1
+❯ /custom-provider-connect add id=llama name="My LlamaBox" base=http://127.0.0.1:8080/v1
   ✓ llama registered — 4 models loaded from /v1/models
 ❯ /models        # llama/* now appears in the picker
 ```
 
 ## What you get
 
-- **`/custom-connect`** — guided dialogs in the TUI; a command grammar in the
-  web UI (see below). Add, edit, remove, and list custom providers.
+- **`/custom-connect`** — guided dialogs in the TUI (in the web UI:
+  `/custom-provider-connect`, see below). Add, edit, remove, and list custom
+  providers.
 - **Safe-store credentials** — API keys are saved through OpenCode's
   integration API, so they show up in `/connect` and `opencode auth list`
   alongside every other provider. Keyless endpoints (local inference servers)
@@ -46,22 +47,28 @@ project (local discovery loads `<dir>/index.ts` directly).
 
 ### TUI (dialogs)
 
-- `/custom-connect` — pick an action (add / edit / remove), answer the
-  prompts, paste the API key (masked; empty = keyless).
+- `/custom-connect` — lists your custom providers directly (pick one to edit
+  or remove, or choose **Add new provider**), then answers the prompts; empty
+  key = keyless.
 - `/custom-models` — pick a provider, the inventory refreshes, pick a model,
   then **Use in this session** or **Make default**.
 
 ### Web UI / server commands
 
+The server command names differ from the TUI slash names on purpose — a
+same-named pair appears twice in the TUI palette (verified empirically).
+
 ```
-/custom-connect                                        → status list
-/custom-connect add id=<id> name=<Name> base=<url> [key=<key>]
-/custom-connect edit id=<id> [name=<Name>] [base=<url>] [key=<key>]
-/custom-connect remove id=<id>
-/custom-models                                         → list providers
-/custom-models <id>                                    → refresh + list models
-/custom-models <id> default <modelID>                  → catalog default + switch session
+/custom-provider-connect                                        → status list
+/custom-provider-connect add id=<id> name=<Name> base=<url> [key=<key>]
+/custom-provider-connect edit id=<id> [name=<Name>] [base=<url>] [key=<key>]
+/custom-provider-connect remove id=<id>
+/custom-provider-models                                         → list providers
+/custom-provider-models <id>                                    → refresh + list models
+/custom-provider-models <id> default <modelID>                  → catalog default + switch session
 ```
+
+Values containing spaces must be double-quoted: `name="My Provider"`.
 
 Provider IDs are slugged and must be unique; the ID is immutable after
 creation. Editing the base URL or key re-fetches the inventory immediately. A
@@ -71,9 +78,9 @@ provider never disappears because an endpoint hiccuped.
 ### Example
 
 ```
-/custom-connect add id=openrouter name=OpenRouter base=https://openrouter.ai/api/v1 key=sk-or-...
-/custom-models openrouter
-/custom-models openrouter default anthropic/claude-sonnet-4.5
+/custom-provider-connect add id=openrouter name=OpenRouter base=https://openrouter.ai/api/v1 key=sk-or-...
+/custom-provider-models openrouter
+/custom-provider-models openrouter default anthropic/claude-sonnet-4.5
 ```
 
 ## How credentials work

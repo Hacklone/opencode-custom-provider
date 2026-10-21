@@ -12,6 +12,8 @@ import { ProviderInputError } from "../domain/provider-types.ts"
  * /custom-models                           → list providers
  * /custom-models <id>                      → refresh + list models
  * /custom-models <id> default <modelID>    → catalog default + session switch
+ *
+ * Values containing spaces must be double-quoted: name="My Provider".
  */
 
 export type ConnectAction =
@@ -36,12 +38,15 @@ export function parseConnectArgs(text: string): ConnectAction {
     if (name === undefined || baseURL === undefined) {
       throw usageError("add requires name=<Name> and base=<url>")
     }
-    const input = { kind: "add" as const, name, baseURL }
     const id = args["id"]
     const key = args["key"]
-    if (id !== undefined) (input as { id?: string }).id = id
-    if (key !== undefined) (input as { key?: string }).key = key
-    return input
+    return {
+      kind: "add",
+      name,
+      baseURL,
+      ...(id !== undefined ? { id } : {}),
+      ...(key !== undefined ? { key } : {}),
+    }
   }
   if (action === "edit") {
     const args = parseKeyValues(rest, ["id", "name", "base", "key"])
@@ -78,11 +83,28 @@ export function parseModelsArgs(text: string): ModelsAction {
   throw usageError(`unknown action "${action}"`)
 }
 
+/**
+ * Whitespace tokenizer that keeps double-quoted spans as one token, so
+ * `name="My Provider"` survives splitting. Quote characters are dropped; an
+ * unterminated quote extends to the end of the input.
+ */
 function tokenize(text: string): string[] {
   const tokens: string[] = []
-  for (const token of text.trim().split(/\s+/)) {
-    if (token.length > 0) tokens.push(token)
+  let current = ""
+  let quoted = false
+  for (const char of text.trim()) {
+    if (char === '"') {
+      quoted = !quoted
+      continue
+    }
+    if (!quoted && /\s/.test(char)) {
+      if (current.length > 0) tokens.push(current)
+      current = ""
+      continue
+    }
+    current += char
   }
+  if (current.length > 0) tokens.push(current)
   return tokens
 }
 

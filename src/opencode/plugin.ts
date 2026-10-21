@@ -45,12 +45,17 @@ export default Plugin.define({
     }
 
     const commandRegistration = await ctx.command.transform((editor) => {
+      // Server command names differ from the TUI slash entries on purpose:
+      // the user-confirmed shadowing gotcha (palette shows both, and the
+      // same-named entry loses to the server command) makes distinct names
+      // the documented fallback. The TUI keeps /custom-connect and
+      // /custom-models dialogs; these arg-grammar commands serve the web UI.
       editor.add({
-        name: "custom-connect",
+        name: "custom-provider-connect",
         description:
-          "Custom providers: /custom-connect | add id=<id> name=<Name> base=<url> [key=<key>] | edit id=<id> [name=<Name>] [base=<url>] [key=<key>] | remove id=<id>",
+          "Custom providers (web UI): /custom-provider-connect | add id=<id> name=<Name> base=<url> [key=<key>] | edit id=<id> [name=<Name>] [base=<url>] [key=<key>] | remove id=<id>",
         execute: async ({ sessionID, prompt }) => {
-          const text = prompt.text.replace(/^\/custom-connect\b\s*/i, "")
+          const text = prompt.text.replace(/^\/custom-provider-connect\b\s*/i, "")
           try {
             const action = parseConnectArgs(text)
             let reply: string
@@ -72,7 +77,7 @@ export default Plugin.define({
                 const status = await service.edit(action.id, {
                   name: action.name,
                   baseURL: action.baseURL,
-                  key: action.key === undefined ? undefined : action.key,
+                  key: action.key,
                 })
                 reply = formatStatus([status])
                 break
@@ -89,11 +94,11 @@ export default Plugin.define({
         },
       })
       editor.add({
-        name: "custom-models",
+        name: "custom-provider-models",
         description:
-          "Custom provider models: /custom-models | /custom-models <id> | /custom-models <id> default <modelID>",
+          "Custom provider models (web UI): /custom-provider-models | /custom-provider-models <id> | /custom-provider-models <id> default <modelID>",
         execute: async ({ sessionID, prompt }) => {
-          const text = prompt.text.replace(/^\/custom-models\b\s*/i, "")
+          const text = prompt.text.replace(/^\/custom-provider-models\b\s*/i, "")
           try {
             const action = parseModelsArgs(text)
             let reply: string
@@ -124,7 +129,7 @@ export default Plugin.define({
       edit: async (input) => await service.edit(input.id, {
         name: input.name,
         baseURL: input.baseURL,
-        key: input.key === undefined ? undefined : input.key,
+        key: input.key,
       }),
       remove: async (input) => {
         await service.remove(input.id)

@@ -48,13 +48,20 @@ from `@coool/opencode-decision-mode`.
 - **Registry rebuild is fresh**: every `reload()` replays active transforms
   onto a fresh value. A provider that the transform no longer adds disappears
   by itself — unregistering is `Map.delete` + `reload()`, not `editor.remove`.
-- **Command-name shadowing**: a server command with the SAME name as a TUI
-  client slash entry shadows it — Enter then submits the literal text to the
-  model (decision-mode empirical finding). This plugin deliberately uses the
-  same names (`/custom-connect`, `/custom-models`) in both TUI and server per
-  design; verify the shadowing behavior on day one against the live TUI. If it
-  reproduces, rename the server commands (e.g. `custom-provider-connect`) and
-  document the divergence here.
+- **Command-name shadowing (CONFIRMED live 2026-10-21)**: a server command
+  with the SAME name as a TUI client slash entry shows up twice in the
+  palette. The fallback is applied: server commands are named
+  `custom-provider-connect` / `custom-provider-models` (web UI, arg grammar),
+  while the TUI keeps the `/custom-connect` / `/custom-models` dialogs.
+- **RPC handlers are location-scoped**: `ctx.rpc.register` handlers resolve
+  against the CALLER's location. A location-less request resolves the plugin
+  for the default location (home) and fails with
+  `{"type":"rpc.unavailable"}` — which the TUI surfaces as a generic error.
+  Every TUI rpc call must pass `{ location: context.location }` as the
+  RpcCallOptions second argument (verified live: the same request with
+  `?location[directory]=…` returns 200). Global plugins (installed in
+  `~/.config/opencode/plugins`) are location-independent and mask this bug —
+  test with a project-local install.
 - **Secrets never leak into logs or status output**: credential status is a
   boolean; error messages never include key material.
 - **Credential dual-write**: the API key is saved to the safe store via

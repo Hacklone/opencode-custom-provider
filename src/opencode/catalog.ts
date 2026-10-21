@@ -97,7 +97,7 @@ function providerInfo(def: CustomProviderDef, apiKey: string | null): Record<str
 function modelInfo(providerID: string, seed: ModelSeed): Record<string, unknown> {
   return {
     ...Model.Info.default(Provider.ID.make(providerID), Model.ID.make(seed.id)),
-    name: Model.ID.make(seed.name),
+    name: seed.name,
     limit: { context: FALLBACK_CONTEXT_LIMIT, output: FALLBACK_OUTPUT_LIMIT },
   }
 }

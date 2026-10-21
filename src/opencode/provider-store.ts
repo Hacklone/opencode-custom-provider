@@ -1,4 +1,4 @@
-import { slugify } from "../domain/provider-types.ts"
+import { validateProviderId, normalizeBaseURL } from "../domain/provider-types.ts"
 import type { CustomProviderDef } from "../domain/provider-types.ts"
 import type { KeyValueStore } from "../ports/key-value.ts"
 import type { ProviderStore, ProviderRecord } from "../ports/provider-store.ts"
@@ -37,7 +37,11 @@ export class StorageProviderStore implements ProviderStore {
   }
 }
 
-/** Storage is our own writes, but tolerate corrupt entries by dropping them. */
+/**
+ * Storage is our own writes, but tolerate corrupt entries by dropping them.
+ * The id must stay a valid id: list/get/remove all key off it, so a corrupt
+ * id is dropped rather than rewritten into a key/id mismatch.
+ */
 function normalize(value: unknown): ProviderRecord | null {
   if (typeof value !== "object" || value === null) return null
   const raw = value as Record<string, unknown>
@@ -48,6 +52,10 @@ function normalize(value: unknown): ProviderRecord | null {
   if (typeof id !== "string" || typeof name !== "string" || typeof baseURL !== "string" || !Array.isArray(models)) {
     return null
   }
-  const def: CustomProviderDef = { id: slugify(id), name, baseURL }
-  return { def, models: models.filter((m): m is string => typeof m === "string") }
+  try {
+    const def: CustomProviderDef = { id: validateProviderId(id), name, baseURL: normalizeBaseURL(baseURL) }
+    return { def, models: models.filter((m): m is string => typeof m === "string") }
+  } catch {
+    return null
+  }
 }

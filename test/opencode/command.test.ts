@@ -62,6 +62,28 @@ describe("parseConnectArgs", () => {
     expect(() => parseConnectArgs("add name")).toThrow(/must be key=<value>/)
     expect(() => parseConnectArgs("add =x")).toThrow(/must be key=<value>/)
   })
+
+  it("keeps double-quoted values as one token", () => {
+    expect(parseConnectArgs('add name="My Provider" base=https://a.dev/v1')).toEqual({
+      kind: "add",
+      name: "My Provider",
+      baseURL: "https://a.dev/v1",
+    })
+    expect(parseConnectArgs('edit id=acme name="New Name"')).toEqual({
+      kind: "edit",
+      id: "acme",
+      name: "New Name",
+    })
+    expect(parseConnectArgs('add name="A B" base=u')).toEqual({
+      kind: "add",
+      name: "A B",
+      baseURL: "u",
+    })
+  })
+
+  it("extends an unterminated quote to the end of the input", () => {
+    expect(() => parseConnectArgs('add name="Acme base=https://a.dev/v1')).toThrow(/add requires name/)
+  })
 })
 
 describe("parseModelsArgs", () => {

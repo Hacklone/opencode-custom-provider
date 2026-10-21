@@ -141,6 +141,13 @@ describe("CustomProviderService.edit", () => {
     expect(endpoint.calls).toHaveLength(0)
   })
 
+  it("does not refetch for a cosmetic baseURL change", async () => {
+    const { service, endpoint } = await seed()
+    const status = await service.edit("acme", { baseURL: "https://a.dev/v1/" })
+    expect(status.baseURL).toBe("https://a.dev/v1")
+    expect(endpoint.calls).toHaveLength(0)
+  })
+
   it("rotates the key and refetches with the new key", async () => {
     const { service, endpoint, credentials } = await seed()
     endpoint.result = ["m5"]

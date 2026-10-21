@@ -3,9 +3,8 @@ import {
   RESERVED_PROVIDER_IDS,
   ProviderInputError,
   errorMessage,
+  normalizeBaseURL,
   slugify,
-  validateBaseURL,
-  validateName,
   validateProviderId,
 } from "../../src/domain/provider-types.ts"
 
@@ -43,32 +42,15 @@ describe("validateProviderId", () => {
   })
 })
 
-describe("validateName", () => {
-  it("trims and accepts non-empty names", () => {
-    expect(validateName("  Acme  ")).toBe("Acme")
-  })
-
-  it("rejects empty names", () => {
-    expect(() => validateName("   ")).toThrow(/name must not be empty/)
-  })
-
-  it("rejects names over 128 characters", () => {
-    expect(() => validateName("n".repeat(129))).toThrow(/exceeds 128/)
-  })
-})
-
-describe("validateBaseURL", () => {
+describe("normalizeBaseURL", () => {
   it("accepts http(s) URLs and strips trailing slashes", () => {
-    expect(validateBaseURL("https://api.example.com/v1/")).toBe("https://api.example.com/v1")
-    expect(validateBaseURL("http://127.0.0.1:8000/v1")).toBe("http://127.0.0.1:8000/v1")
+    expect(normalizeBaseURL("https://api.example.com/v1/")).toBe("https://api.example.com/v1")
+    expect(normalizeBaseURL("  http://127.0.0.1:8000/v1  ")).toBe("http://127.0.0.1:8000/v1")
   })
 
-  it("rejects unparseable URLs", () => {
-    expect(() => validateBaseURL("not a url")).toThrow(/not a valid URL/)
-  })
-
-  it("rejects non-http protocols", () => {
-    expect(() => validateBaseURL("ftp://files.example.com")).toThrow(/http or https/)
+  it("rejects unparseable and non-http URLs", () => {
+    expect(() => normalizeBaseURL("not a url")).toThrow(/not a valid http/)
+    expect(() => normalizeBaseURL("ftp://files.example.com")).toThrow(/not a valid http/)
   })
 })
 

@@ -1,4 +1,4 @@
-import { ProviderInputError, slugify, validateProviderId } from "../domain/provider-types.ts"
+import { ProviderInputError, slugify, validateProviderId, normalizeBaseURL } from "../domain/provider-types.ts"
 import { seedsFromIds } from "../domain/inventory.ts"
 import type { ProviderStore, ProviderRecord } from "../ports/provider-store.ts"
 import type { CredentialStore } from "../ports/credential-store.ts"
@@ -76,8 +76,11 @@ export class CustomProviderService {
     }
     const def = { ...record.def }
     if (patch.name !== undefined) def.name = requireNonEmpty(patch.name, "name")
-    const baseURLChanged = patch.baseURL !== undefined && patch.baseURL !== record.def.baseURL
-    if (patch.baseURL !== undefined) def.baseURL = normalizeBaseURL(patch.baseURL)
+    // Normalize BEFORE comparing so a cosmetic-only change (e.g. a trailing
+    // slash) does not trigger a spurious inventory refetch.
+    const nextBaseURL = patch.baseURL !== undefined ? normalizeBaseURL(patch.baseURL) : undefined
+    const baseURLChanged = nextBaseURL !== undefined && nextBaseURL !== record.def.baseURL
+    if (nextBaseURL !== undefined) def.baseURL = nextBaseURL
     const keyProvided = patch.key !== undefined
     const key = keyProvided ? requireKey(patch.key) : null
     // baseURL or key change => immediate refetch with the effective credential.
@@ -166,14 +169,6 @@ function deriveId(raw: string): string {
     throw new ProviderInputError(`id derived from "${raw}" is empty — provide id=<id> explicitly`)
   }
   return validateProviderId(candidate)
-}
-
-function normalizeBaseURL(raw: string): string {
-  const trimmed = raw.trim()
-  if (!/^https?:\/\//.test(trimmed) || !URL.canParse(trimmed)) {
-    throw new ProviderInputError(`base "${trimmed}" is not a valid http(s) URL`)
-  }
-  return trimmed.replace(/\/+$/, "")
 }
 
 function requireKey(key: string | null | undefined): string | null {

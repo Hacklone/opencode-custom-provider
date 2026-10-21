@@ -37,10 +37,15 @@ describe("StorageProviderStore", () => {
     await kv.set("custom-provider/bad2", { id: 1 })
     await kv.set("custom-provider/bad3", { id: "x", name: "x", baseURL: 3, models: [] })
     await kv.set("custom-provider/bad4", { id: "x", name: "x", baseURL: "u", models: "nope" })
-    await kv.set("custom-provider/good", { id: "Good", name: "G", baseURL: "https://g.dev/v1", models: ["m", 7] })
+    // Invalid id: dropping (not rewriting) keeps list/get/remove consistent.
+    await kv.set("custom-provider/bad5", { id: "Good", name: "G", baseURL: "https://g.dev/v1", models: ["m"] })
+    // Invalid baseURL: registering it would produce a broken provider.
+    await kv.set("custom-provider/bad6", { id: "x", name: "x", baseURL: "u", models: ["m"] })
+    await kv.set("custom-provider/good", { id: "good", name: "G", baseURL: "https://g.dev/v1/", models: ["m", 7] })
     const listed = await store.list()
     expect(listed).toHaveLength(1)
     expect(listed[0]?.def.id).toBe("good")
+    expect(listed[0]?.def.baseURL).toBe("https://g.dev/v1")
     expect(listed[0]?.models).toEqual(["m"])
   })
 

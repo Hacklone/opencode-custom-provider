@@ -42,27 +42,14 @@ export function validateProviderId(id: string): string {
   return id
 }
 
-export function validateName(name: string): string {
-  const trimmed = name.trim()
-  if (trimmed.length === 0) {
-    throw new ProviderInputError("name must not be empty")
-  }
-  if (trimmed.length > 128) {
-    throw new ProviderInputError(`name exceeds 128 characters: got ${trimmed.length}`)
-  }
-  return trimmed
-}
-
-export function validateBaseURL(raw: string): string {
+/**
+ * Validates and normalizes a base URL: must be a valid http(s) URL; trailing
+ * slashes are stripped so persisted values are stable across edits.
+ */
+export function normalizeBaseURL(raw: string): string {
   const trimmed = raw.trim()
-  let url: URL
-  try {
-    url = new URL(trimmed)
-  } catch {
-    throw new ProviderInputError(`base "${trimmed}" is not a valid URL`)
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new ProviderInputError(`base "${trimmed}" must use http or https`)
+  if (!/^https?:\/\//.test(trimmed) || !URL.canParse(trimmed)) {
+    throw new ProviderInputError(`base "${trimmed}" is not a valid http(s) URL`)
   }
   return trimmed.replace(/\/+$/, "")
 }

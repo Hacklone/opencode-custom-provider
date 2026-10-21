@@ -14,6 +14,7 @@
  * the short `/custom-connect` and `/custom-models` dialogs.
  */
 import { Plugin } from "@opencode/plugin/tui"
+import { errorMessage } from "./domain/provider-types.ts"
 import { CustomProviderRpc, type ProviderStatus } from "../rpc.ts"
 
 export default Plugin.define({
@@ -25,7 +26,7 @@ export default Plugin.define({
     const toastError = (error: unknown) => {
       context.ui.toast.show({
         title: "Custom provider",
-        message: error instanceof Error ? error.message : String(error),
+        message: errorMessage(error),
         variant: "error",
       })
     }

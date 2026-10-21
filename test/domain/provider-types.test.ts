@@ -61,6 +61,37 @@ describe("errorMessage", () => {
 
   it("stringifies non-Error throws", () => {
     expect(errorMessage(42)).toBe("42")
+    expect(errorMessage("plain string")).toBe("plain string")
+  })
+
+  it("renders the rpc client's {type, message} throws readably", () => {
+    expect(errorMessage({ type: "rpc.invalid_input", message: "Invalid input: expected object" })).toBe(
+      "Invalid input: expected object",
+    )
+  })
+
+  it("turns rpc.unavailable into an actionable hint", () => {
+    expect(errorMessage({ type: "rpc.unavailable", message: "RPC is unavailable: custom-provider" })).toBe(
+      "the custom-provider service is not available on this OpenCode server — restart OpenCode so the plugin loads, then try again",
+    )
+    expect(errorMessage({ type: "rpc.unavailable" })).toBe(
+      "the custom-provider service is not available on this OpenCode server — restart OpenCode so the plugin loads, then try again",
+    )
+  })
+
+  it("hints at the server for transport failures", () => {
+    expect(errorMessage({ message: "Transport" })).toBe(
+      "could not reach the OpenCode server — check that it is running",
+    )
+  })
+
+  it("falls back to type-only or stringified rendering, never [object Object]", () => {
+    expect(errorMessage({ type: "rpc.unknown_kind" })).toBe("rpc.unknown_kind")
+    expect(errorMessage({ code: 7 })).toBe('{"code":7}')
+    expect(errorMessage(null)).toBe("null")
+    const circular: Record<string, unknown> = {}
+    circular["self"] = circular
+    expect(errorMessage(circular)).toBe("unprintable error")
   })
 })
 

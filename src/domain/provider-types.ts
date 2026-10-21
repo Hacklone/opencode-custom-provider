@@ -54,7 +54,37 @@ export function normalizeBaseURL(raw: string): string {
   return trimmed.replace(/\/+$/, "")
 }
 
+/**
+ * Human-readable error rendering. The RPC client throws plain
+ * `{type, message}` objects (not Error instances), so a naive String(error)
+ * renders "[object Object]". Known rpc failure types get an actionable hint;
+ * anything else is stringified, never "[object Object]".
+ */
 export function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
+  if (typeof error === "string") return error
+  if (error instanceof Error) return describeError("", error.message)
+  if (typeof error === "object" && error !== null) {
+    const record = error as { message?: unknown; type?: unknown }
+    const message = typeof record.message === "string" ? record.message.trim() : ""
+    const type = typeof record.type === "string" ? record.type : ""
+    if (message.length > 0) return describeError(type, message)
+    if (type.length > 0) return describeError(type, type)
+    try {
+      return JSON.stringify(error)
+    } catch {
+      // Circular or otherwise unstringifiable throws still deserve words.
+      return "unprintable error"
+    }
+  }
   return String(error)
+}
+
+function describeError(type: string, message: string): string {
+  if (type === "rpc.unavailable") {
+    return "the custom-provider service is not available on this OpenCode server — restart OpenCode so the plugin loads, then try again"
+  }
+  if (message === "Transport") {
+    return "could not reach the OpenCode server — check that it is running"
+  }
+  return message
 }

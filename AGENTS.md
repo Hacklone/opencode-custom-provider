@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Rules for working in this repository. The plugin registers user-defined
-OpenAI-compatible providers at runtime (`/custom-connect`), keeps their API
+OpenAI-compatible providers at runtime (`/custom-provider`), keeps their API
 keys in OpenCode's safe store, and loads each provider's model inventory from
 `GET {baseURL}/v1/models` on demand. Architecture and conventions are cloned
 from `@coool/opencode-decision-mode`.
@@ -51,8 +51,8 @@ from `@coool/opencode-decision-mode`.
 - **Command-name shadowing (CONFIRMED live 2026-10-21)**: a server command
   with the SAME name as a TUI client slash entry shows up twice in the
   palette. The fallback is applied: the server command is named
-  `web-custom-connect` (web UI, arg grammar), while the TUI keeps the
-  `/custom-connect` dialog.
+  `web-custom-provider` (web UI, arg grammar), while the TUI keeps the
+  `/custom-provider` dialog.
 - **RPC handlers are location-scoped**: `ctx.rpc.register` handlers resolve
   against the CALLER's location. A location-less request resolves the plugin
   for the default location (home) and fails with
@@ -153,7 +153,7 @@ Live smoke test: copy `src/` into a sandbox project's
 `.opencode/plugins/custom-provider/` keeping the root `index.ts` shim (local
 discovery loads `<dir>/index.ts` directly; the package.json `exports` map is
 only honored for npm installs), then run `opencode` and exercise
-`/custom-connect` (TUI) or `/web-custom-connect` (web UI).
+`/custom-provider` (TUI) or `/web-custom-provider` (web UI).
 
 ## Publishing
 

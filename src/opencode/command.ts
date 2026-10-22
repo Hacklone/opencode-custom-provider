@@ -2,15 +2,15 @@ import { ProviderInputError } from "../domain/provider-types.ts"
 
 /**
  * Server command grammar (pure, no platform imports). TUI dialogs build the
- * same inputs directly; the grammar is for the `web-custom-connect` server
+ * same inputs directly; the grammar is for the `web-custom-provider` server
  * command driven from the web UI. Model selection is served by OpenCode's
  * built-in /models picker (custom models appear there), so there is no
  * models grammar.
  *
- * /custom-connect          → status list
- * /custom-connect add id=<id> name=<Name> base=<url> [key=<key>]
- * /custom-connect edit id=<id> [name=<Name>] [base=<url>]
- * /custom-connect remove id=<id>
+ * /custom-provider          → status list
+ * /custom-provider add id=<id> name=<Name> base=<url> [key=<key>]
+ * /custom-provider edit id=<id> [name=<Name>] [base=<url>]
+ * /custom-provider remove id=<id>
  *
  * Values containing spaces must be double-quoted: name="My Provider".
  */
@@ -99,7 +99,7 @@ function parseKeyValues(tokens: readonly string[], allowed: readonly string[]): 
 
 function usageError(detail: string): ProviderInputError {
   return new ProviderInputError(
-    `${detail} — usage: /custom-connect [add id=<id> name=<Name> base=<url> [key=<key>]] | [edit id=<id> [name=<Name>] [base=<url>]] | [remove id=<id>]`,
+    `${detail} — usage: /custom-provider [add id=<id> name=<Name> base=<url> [key=<key>]] | [edit id=<id> [name=<Name>] [base=<url>]] | [remove id=<id>]`,
   )
 }
 
@@ -112,7 +112,7 @@ export function formatStatus(providers: {
   lastError?: string
 }[]): string {
   if (providers.length === 0) {
-    return "Custom providers: none — add one with /web-custom-connect add id=<id> name=<Name> base=<url> [key=<key>]"
+    return "Custom providers: none — add one with /web-custom-provider add id=<id> name=<Name> base=<url> [key=<key>]"
   }
   const lines = providers.map((p) => {
     const credential = p.hasCredential ? "credential saved" : "keyless"

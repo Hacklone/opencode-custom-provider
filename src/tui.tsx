@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 /**
  * TUI plugin: dialog flows over the same RPC methods the web UI reaches via
- * the web-custom-connect server command. One service on the server means the
+ * the web-custom-provider server command. One service on the server means the
  * clients cannot drift.
  *
  * Model selection needs no dialog here: custom provider models appear in
@@ -12,11 +12,11 @@
  * RPC calls MUST carry the TUI location: rpc handlers are resolved per
  * location, and a project-local plugin's handlers are invisible to a
  * location-less request ("RPC is unavailable", verified live 2026-10-21 —
- * the exact bug that made /custom-connect report an error).
+ * the exact bug that made /custom-provider report an error).
  *
  * NOTE (shadowing gotcha, CONFIRMED live): same-named server commands and TUI
  * slash entries both appear in the palette. The server command is therefore
- * named `web-custom-connect`; the TUI keeps the `/custom-connect` dialog.
+ * named `web-custom-provider`; the TUI keeps the `/custom-provider` dialog.
  */
 import { Plugin } from "@opencode/plugin/tui"
 import { errorMessage } from "./domain/provider-types.ts"
@@ -215,12 +215,12 @@ export default Plugin.define({
       mode: "global",
       commands: [
         {
-          id: "custom-provider.connect",
+          id: "custom-provider.manage",
           title: "Custom providers",
           description: "Add, edit, or remove custom OpenAI-compatible providers",
           group: "Custom providers",
           palette: true,
-          slash: { name: "custom-connect" },
+          slash: { name: "custom-provider" },
           suggested: true,
           run: () => void connectFlow(),
         },

@@ -164,7 +164,7 @@ export class CustomProviderService {
   private async require(id: string): Promise<ProviderRecord> {
     const record = await this.deps.store.get(id)
     if (record === undefined) {
-      throw new ProviderInputError(`no custom provider with id "${id}" — run /custom-connect to list providers`)
+      throw new ProviderInputError(`no custom provider with id "${id}" — run /custom-provider to list providers`)
     }
     return record
   }

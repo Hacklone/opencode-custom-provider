@@ -71,12 +71,12 @@ describe("custom-provider use cases", () => {
     const ctx = makeCtx()
     await setup(ctx)
 
-    await ctx.run("web-custom-connect", "add id=acme name=Acme base=https://a.dev/v1 key=sk-1")
+    await ctx.run("web-custom-provider", "add id=acme name=Acme base=https://a.dev/v1 key=sk-1")
     expect(lastSynthetic(ctx)).toContain("credential saved")
     // Auto-default: the first model of the new provider is the catalog default.
     expect(ctx.modelDefaults.at(-1)).toEqual({ providerID: "acme", modelID: "m1" })
 
-    await ctx.run("web-custom-connect", "remove id=acme")
+    await ctx.run("web-custom-provider", "remove id=acme")
     expect(lastSynthetic(ctx)).toContain('Removed custom provider "acme"')
     expect(lastSynthetic(ctx)).toContain("its API key remains in the safe store")
     expect(lastSynthetic(ctx)).toContain("opencode auth logout acme")
@@ -160,7 +160,7 @@ describe("custom-provider use cases", () => {
     stubFetch({ data: [{ id: "m1" }] })
     const ctx = makeCtx()
     await setup(ctx)
-    await ctx.run("web-custom-connect", "add name=Acme base=not-a-url")
+    await ctx.run("web-custom-provider", "add name=Acme base=not-a-url")
     expect(ctx.synthetics.at(-1)?.resume).toBe(false)
     expect(lastSynthetic(ctx)).toContain("not a valid http(s) URL")
     expect(lastSynthetic(ctx)).toContain("Custom provider error:")

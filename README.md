@@ -5,15 +5,15 @@ OpenAI-compatible endpoints as providers — no config files, everything from
 the TUI or the web UI.
 
 ```
-❯ /web-custom-connect add id=llama name="My LlamaBox" base=http://127.0.0.1:8080/v1
+❯ /web-custom-provider add id=llama name="My LlamaBox" base=http://127.0.0.1:8080/v1
   ✓ llama registered — 4 models loaded from /v1/models
 ❯ /models        # llama/* now appears in the picker
 ```
 
 ## What you get
 
-- **`/custom-connect`** — guided dialogs in the TUI (in the web UI:
-  `/web-custom-connect`, see below). Add, edit, remove, and list custom
+- **`/custom-provider`** — guided dialogs in the TUI (in the web UI:
+  `/web-custom-provider`, see below). Add, edit, remove, and list custom
   providers.
 - **Safe-store credentials** — API keys are saved through OpenCode's
   integration API, so they show up in `/connect` and `opencode auth list`
@@ -50,7 +50,7 @@ project (local discovery loads `<dir>/index.ts` directly).
 
 ### TUI (dialogs)
 
-- `/custom-connect` — lists your custom providers directly (pick one to edit,
+- `/custom-provider` — lists your custom providers directly (pick one to edit,
   refresh the inventory, or remove, or choose **Add new provider**), then
   answers the prompts; empty key = keyless.
 - `/models`, `/connect` — the built-in dialogs handle model selection and API
@@ -62,10 +62,10 @@ The server command name differs from the TUI slash name on purpose — a
 same-named pair appears twice in the TUI palette (verified empirically).
 
 ```
-/web-custom-connect                                        → status list
-/web-custom-connect add id=<id> name=<Name> base=<url> [key=<key>]
-/web-custom-connect edit id=<id> [name=<Name>] [base=<url>]
-/web-custom-connect remove id=<id>
+/web-custom-provider                                        → status list
+/web-custom-provider add id=<id> name=<Name> base=<url> [key=<key>]
+/web-custom-provider edit id=<id> [name=<Name>] [base=<url>]
+/web-custom-provider remove id=<id>
 ```
 
 Values containing spaces must be double-quoted: `name="My Provider"`.
@@ -80,7 +80,7 @@ provider's health and shown in every provider list
 ### Example
 
 ```
-/web-custom-connect add id=openrouter name=OpenRouter base=https://openrouter.ai/api/v1 key=sk-or-...
+/web-custom-provider add id=openrouter name=OpenRouter base=https://openrouter.ai/api/v1 key=sk-or-...
 /models        # openrouter/* appears in the built-in picker, first model is the default
 ```
 

@@ -46,15 +46,15 @@ export default Plugin.define({
       // Server command name differs from the TUI slash entry on purpose:
       // the user-confirmed shadowing gotcha (palette shows both, and the
       // same-named entry loses to the server command) makes distinct names
-      // the documented fallback. The TUI keeps the /custom-connect dialog;
+      // the documented fallback. The TUI keeps the /custom-provider dialog;
       // this arg-grammar command serves the web UI. Model selection needs no
       // command: custom models appear in OpenCode's built-in /models picker.
       editor.add({
-        name: "web-custom-connect",
+        name: "web-custom-provider",
         description:
-          "Custom providers (web UI): /web-custom-connect | add id=<id> name=<Name> base=<url> [key=<key>] | edit id=<id> [name=<Name>] [base=<url>] | remove id=<id>",
+          "Custom providers (web UI): /web-custom-provider | add id=<id> name=<Name> base=<url> [key=<key>] | edit id=<id> [name=<Name>] [base=<url>] | remove id=<id>",
         execute: async ({ sessionID, prompt }) => {
-          const text = prompt.text.replace(/^\/web-custom-connect\b\s*/i, "")
+          const text = prompt.text.replace(/^\/web-custom-provider\b\s*/i, "")
           try {
             const action = parseConnectArgs(text)
             let reply: string

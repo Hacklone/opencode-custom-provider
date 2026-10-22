@@ -118,14 +118,17 @@ export default Plugin.define({
     const editFlow = async (provider: ProviderStatus) => {
       // Key rotation is NOT part of the edit flow: rotate via the built-in
       // /connect (the active credential wins at request time and our
-      // resolve() sees it instantly). Empty input keeps the current value.
+      // resolve() sees it instantly). The fields arrive PREFILLED with the
+      // current values — submitting unchanged is a no-op, clearing a field
+      // keeps the current value, Esc cancels. On a validation failure the
+      // loop re-prompts with the attempted values still filled in.
       let name = provider.name
       let baseURL = provider.baseURL
       for (;;) {
-        const nextName = await context.ui.dialog.prompt({ title: "Provider name", placeholder: name, value: name === provider.name ? undefined : name })
+        const nextName = await context.ui.dialog.prompt({ title: "Provider name", placeholder: name, value: name })
         if (nextName === undefined) return
         name = nextName.trim()
-        const nextBaseURL = await context.ui.dialog.prompt({ title: "Base URL", placeholder: baseURL, value: baseURL === provider.baseURL ? undefined : baseURL })
+        const nextBaseURL = await context.ui.dialog.prompt({ title: "Base URL", placeholder: baseURL, value: baseURL })
         if (nextBaseURL === undefined) return
         baseURL = nextBaseURL.trim()
         try {

@@ -40,10 +40,30 @@ export default Plugin.define({
       return `${p.baseURL} · ${p.modelCount} models · ${p.hasCredential ? "credential saved" : "keyless"}${health}`
     }
 
-    const addFlow = async () => {
+    // Query text the user had typed when a dialog option was picked; the
+    // search callback tracks it per keystroke, so "Add new provider" can
+    // prefill the name with what was searched for.
+    let searchQuery = ""
+
+    /** Filter that keeps the "Add new provider" escape hatch visible when the
+     * query matches nothing, so a typo never dead-ends the dialog. */
+    const searchKeepingAdd =
+      <Value,>(addValue: Value) =>
+      (query: string, options: readonly { value: Value; title: string; description?: string }[]) => {
+        searchQuery = query.trim()
+        const q = searchQuery.toLowerCase()
+        const matches = options.filter(
+          (o) => q === "" || `${o.title} ${o.description ?? ""}`.toLowerCase().includes(q),
+        )
+        const add = options.find((o) => o.value === addValue)
+        if (add !== undefined && !matches.includes(add) && matches.length === 0) return [add]
+        return matches
+      }
+
+    const addFlow = async (prefill = "") => {
       // Validation failures loop back to the prompts with the entered values
       // kept, so a typo in the key or URL never costs the whole form.
-      let name = ""
+      let name = prefill.trim()
       let baseURL = ""
       let key = ""
       for (;;) {
@@ -152,6 +172,7 @@ export default Plugin.define({
         const providers = await fetchProviders()
         const picked = await context.ui.dialog.select<ProviderStatus | "add">({
           title: "Custom providers",
+          search: searchKeepingAdd<ProviderStatus | "add">("add"),
           options: [
             ...providers.map((p) => ({
               value: p,
@@ -162,7 +183,7 @@ export default Plugin.define({
           ],
         })
         if (picked === undefined || picked === "add") {
-          if (picked === "add") await addFlow()
+          if (picked === "add") await addFlow(searchQuery)
           return
         }
         const action = await context.ui.dialog.select<"edit" | "remove">({
@@ -190,15 +211,23 @@ export default Plugin.define({
           })
           return
         }
-        const provider = await context.ui.dialog.select<ProviderStatus>({
+        const provider = await context.ui.dialog.select<ProviderStatus | "add">({
           title: "Models — pick a provider",
-          options: providers.map((p) => ({
-            value: p,
-            title: `${p.name} (${p.id})`,
-            description: providerDescription(p),
-          })),
+          search: searchKeepingAdd<ProviderStatus | "add">("add"),
+          options: [
+            ...providers.map((p) => ({
+              value: p,
+              title: `${p.name} (${p.id})`,
+              description: providerDescription(p),
+            })),
+            { value: "add", title: "Add new provider", description: "Register a new OpenAI-compatible endpoint" },
+          ],
         })
         if (provider === undefined) return
+        if (provider === "add") {
+          await addFlow(searchQuery)
+          return
+        }
         const models = (await rpc().refresh({ id: provider.id }, rpcOptions())).models
         if (models.length === 0) {
           context.ui.toast.show({

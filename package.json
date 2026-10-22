@@ -1,6 +1,6 @@
 {
   "name": "@coool/opencode-custom-provider",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "OpenCode plugin: register custom OpenAI-compatible providers at runtime, keep their API keys in the safe store, and auto-load their model inventory from /v1/models.",
   "license": "MIT",
   "type": "module",

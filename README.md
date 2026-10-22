@@ -108,6 +108,14 @@ npm run typecheck    # tsc --noEmit
 npm test             # vitest with a 100% coverage gate
 ```
 
+A local OpenAI-compatible mock endpoint lives at `scripts/mock-llm/server.mjs`
+(`node scripts/mock-llm/server.mjs` → `http://127.0.0.1:8991/v1`, key
+`sk-mock-1234`, models `mock-mini` / `mock-large` / `mock-coder`). Every chat
+reply names the model that served it (`MOCK-OK via mock-large`) in both the
+`model` field and the visible reply text, so a round-trip through a registered
+custom provider proves which model ran. Its behavior is covered by
+`test/mock-server.test.ts` (in-process server on an ephemeral port).
+
 Architecture and conventions live in `AGENTS.md`; domain vocabulary in
 `GLOSSARY.md`. Conventions are cloned from
 [`@coool/opencode-decision-mode`](https://github.com/coool/opencode-decision-mode).

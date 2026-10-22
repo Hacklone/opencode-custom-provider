@@ -96,7 +96,9 @@ from `@coool/opencode-decision-mode`.
   a branch is unreachable, delete the branch instead of weakening the gate.
 - Tests assert behavior through public methods with in-memory fakes
   (`test/fakes.ts`). Adapters are tested with injected/mocked dependencies.
-- Determinism: no sleeps, no real network, no real clocks.
+- Determinism: no sleeps, no real network, no real clocks. Exception: the
+  `scripts/mock-llm` integration tests start the mock in-process on an
+  ephemeral loopback port — loopback only, never an external network.
 - Bug fixes add a regression test that fails without the fix.
 
 ## Live smoke test findings (verified 2026-10-21 against OpenCode 2.1.1)

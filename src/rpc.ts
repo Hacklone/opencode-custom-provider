@@ -11,6 +11,7 @@ const providerStatus = z.object({
   baseURL: z.string(),
   modelCount: z.number(),
   hasCredential: z.boolean(),
+  lastError: z.string().optional(),
 })
 
 export type ProviderStatus = z.infer<typeof providerStatus>

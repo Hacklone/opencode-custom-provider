@@ -29,7 +29,9 @@ export class StorageProviderStore implements ProviderStore {
   }
 
   async save(record: ProviderRecord): Promise<void> {
-    await this.kv.set(PREFIX + record.def.id, { ...record.def, models: record.models })
+    const stored: Record<string, unknown> = { ...record.def, models: record.models }
+    if (record.lastError !== undefined) stored["lastError"] = record.lastError
+    await this.kv.set(PREFIX + record.def.id, stored)
   }
 
   async remove(id: string): Promise<void> {
@@ -54,7 +56,8 @@ function normalize(value: unknown): ProviderRecord | null {
   }
   try {
     const def: CustomProviderDef = { id: validateProviderId(id), name, baseURL: normalizeBaseURL(baseURL) }
-    return { def, models: models.filter((m): m is string => typeof m === "string") }
+    const lastError = typeof raw["lastError"] === "string" ? raw["lastError"] : undefined
+    return { def, models: models.filter((m): m is string => typeof m === "string"), lastError }
   } catch {
     return null
   }

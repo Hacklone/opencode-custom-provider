@@ -10,8 +10,8 @@
  *
  * NOTE (shadowing gotcha, CONFIRMED live): same-named server commands and TUI
  * slash entries both appear in the palette. The server commands are therefore
- * named `custom-provider-connect` / `custom-provider-models`; the TUI keeps
- * the short `/custom-connect` and `/custom-models` dialogs.
+ * named `web-custom-connect` / `web-custom-models`; the TUI keeps the short
+ * `/custom-connect` and `/custom-models` dialogs.
  */
 import { Plugin } from "@opencode/plugin/tui"
 import { errorMessage } from "./domain/provider-types.ts"
@@ -35,63 +35,102 @@ export default Plugin.define({
       return (await rpc().status({}, rpcOptions())).providers
     }
 
-    const providerDescription = (p: ProviderStatus): string =>
-      `${p.baseURL} · ${p.modelCount} models · ${p.hasCredential ? "credential saved" : "keyless"}`
+    const providerDescription = (p: ProviderStatus): string => {
+      const health = p.lastError === undefined ? "" : ` · LAST REFRESH FAILED: ${p.lastError}`
+      return `${p.baseURL} · ${p.modelCount} models · ${p.hasCredential ? "credential saved" : "keyless"}${health}`
+    }
 
     const addFlow = async () => {
-      const name = await context.ui.dialog.prompt({ title: "Provider name", placeholder: "Acme" })
-      if (name === undefined || name.trim().length === 0) return
-      const baseURL = await context.ui.dialog.prompt({
-        title: "Base URL",
-        placeholder: "https://api.example.com/v1",
-      })
-      if (baseURL === undefined || baseURL.trim().length === 0) return
-      const key = await context.ui.dialog.prompt({
-        title: "API key",
-        placeholder: "Paste the key — leave empty for a keyless endpoint",
-        // No masking: DialogPromptOptions has no secret/mask option (verified
-        // against @opencode/plugin tui 2.0.32), so the key is echoed as-is.
-      })
-      if (key === undefined) return
-      const status = await rpc().connect(
-        {
-          name: name.trim(),
-          baseURL: baseURL.trim(),
-          key: key.trim().length > 0 ? key.trim() : null,
-        },
-        rpcOptions(),
-      )
-      context.ui.toast.show({
-        title: "Custom provider added",
-        message: `${status.name} → ${status.baseURL} · ${status.modelCount} models`,
-        variant: "success",
-      })
+      // Validation failures loop back to the prompts with the entered values
+      // kept, so a typo in the key or URL never costs the whole form.
+      let name = ""
+      let baseURL = ""
+      let key = ""
+      for (;;) {
+        const nextName = await context.ui.dialog.prompt({ title: "Provider name", placeholder: "Acme", value: name === "" ? undefined : name })
+        if (nextName === undefined || nextName.trim().length === 0) return
+        name = nextName.trim()
+        const nextBaseURL = await context.ui.dialog.prompt({
+          title: "Base URL",
+          placeholder: "https://api.example.com/v1",
+          value: baseURL === "" ? undefined : baseURL,
+        })
+        if (nextBaseURL === undefined) return
+        baseURL = nextBaseURL.trim()
+        const nextKey = await context.ui.dialog.prompt({
+          title: "API key",
+          placeholder: "Paste the key — leave empty for a keyless endpoint",
+          value: key === "" ? undefined : key,
+          // No masking: DialogPromptOptions has no secret/mask option (verified
+          // against @opencode/plugin tui 2.0.32), so the key is echoed as-is.
+        })
+        if (nextKey === undefined) return
+        key = nextKey.trim()
+        try {
+          const status = await rpc().connect(
+            {
+              name,
+              baseURL,
+              key: key.length > 0 ? key : null,
+            },
+            rpcOptions(),
+          )
+          context.ui.toast.show({
+            title: "Custom provider added",
+            message: `${status.name} → ${status.baseURL} · ${status.modelCount} models`,
+            variant: "success",
+          })
+          return
+        } catch (error) {
+          await context.ui.dialog.alert({
+            title: `Could not add ${name}`,
+            message: `${errorMessage(error)}\n\nThe values are kept — fix them and try again, or press Esc to cancel.`,
+          })
+        }
+      }
     }
 
     const editFlow = async (provider: ProviderStatus) => {
-      const name = await context.ui.dialog.prompt({ title: "Provider name", placeholder: provider.name })
-      if (name === undefined) return
-      const baseURL = await context.ui.dialog.prompt({ title: "Base URL", placeholder: provider.baseURL })
-      if (baseURL === undefined) return
-      const key = await context.ui.dialog.prompt({
-        title: "API key",
-        placeholder: provider.hasCredential ? "Saved — type a new key to replace, empty keeps it" : "Empty keeps this endpoint keyless",
-      })
-      if (key === undefined) return
-      const status = await rpc().edit(
-        {
-          id: provider.id,
-          name: name.trim().length > 0 ? name.trim() : undefined,
-          baseURL: baseURL.trim().length > 0 ? baseURL.trim() : undefined,
-          key: key.trim().length > 0 ? key.trim() : undefined,
-        },
-        rpcOptions(),
-      )
-      context.ui.toast.show({
-        title: "Custom provider updated",
-        message: `${status.name} → ${status.baseURL} · ${status.modelCount} models`,
-        variant: "success",
-      })
+      let name = provider.name
+      let baseURL = provider.baseURL
+      let key = ""
+      for (;;) {
+        const nextName = await context.ui.dialog.prompt({ title: "Provider name", placeholder: name, value: name === provider.name ? undefined : name })
+        if (nextName === undefined) return
+        name = nextName.trim()
+        const nextBaseURL = await context.ui.dialog.prompt({ title: "Base URL", placeholder: baseURL, value: baseURL === provider.baseURL ? undefined : baseURL })
+        if (nextBaseURL === undefined) return
+        baseURL = nextBaseURL.trim()
+        const nextKey = await context.ui.dialog.prompt({
+          title: "API key",
+          placeholder: provider.hasCredential ? "Saved — type a new key to replace, empty keeps it" : "Empty keeps this endpoint keyless",
+          value: key === "" ? undefined : key,
+        })
+        if (nextKey === undefined) return
+        key = nextKey.trim()
+        try {
+          const status = await rpc().edit(
+            {
+              id: provider.id,
+              name: name !== provider.name && name.length > 0 ? name : undefined,
+              baseURL: baseURL !== provider.baseURL && baseURL.length > 0 ? baseURL : undefined,
+              key: key.length > 0 ? key : undefined,
+            },
+            rpcOptions(),
+          )
+          context.ui.toast.show({
+            title: "Custom provider updated",
+            message: `${status.name} → ${status.baseURL} · ${status.modelCount} models`,
+            variant: "success",
+          })
+          return
+        } catch (error) {
+          await context.ui.dialog.alert({
+            title: `Could not update ${provider.name}`,
+            message: `${errorMessage(error)}\n\nThe values are kept — fix them and try again, or press Esc to cancel.`,
+          })
+        }
+      }
     }
 
     const removeFlow = async (provider: ProviderStatus) => {

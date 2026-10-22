@@ -8,6 +8,8 @@ import type { CustomProviderDef } from "../domain/provider-types.ts"
 export interface ProviderRecord {
   def: CustomProviderDef
   models: string[]
+  /** Human-readable reason the last inventory fetch failed; absent = healthy. */
+  lastError?: string
 }
 
 export interface ProviderStore {

@@ -170,8 +170,24 @@ describe("CustomProviderService.edit", () => {
     await expect(service.edit("acme", { baseURL: "https://b.dev/v1" })).rejects.toThrow("down")
     expect((await store.get("acme"))?.def.baseURL).toBe("https://a.dev/v1")
     expect((await store.get("acme"))?.models).toEqual(["m1"])
+    // The failure is recorded as the provider's health.
+    expect((await store.get("acme"))?.lastError).toBe("down")
+    expect((await service.list())[0]?.lastError).toBe("down")
     // Registration failed before any publish, so no NEW catalog entry was made.
     expect(catalog.registered).toHaveLength(1)
+  })
+
+  it("records health on refresh failure and clears it on success", async () => {
+    const { service, endpoint, store } = await seed()
+    endpoint.result = new Error("401 — bad key")
+    await expect(service.refresh("acme")).rejects.toThrow("401")
+    expect((await store.get("acme"))?.models).toEqual(["m1"])
+    expect((await store.get("acme"))?.lastError).toBe("401 — bad key")
+
+    endpoint.result = ["m1", "m3"]
+    expect(await service.refresh("acme")).toEqual(["m1", "m3"])
+    expect((await store.get("acme"))?.lastError).toBeUndefined()
+    expect((await service.list())[0]?.lastError).toBeUndefined()
   })
 
   it("rejects an empty patch", async () => {

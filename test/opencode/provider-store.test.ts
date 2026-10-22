@@ -49,6 +49,14 @@ describe("StorageProviderStore", () => {
     expect(listed[0]?.models).toEqual(["m"])
   })
 
+  it("round-trips the health error", async () => {
+    const { store } = makeStore()
+    await store.save({ def: { id: "acme", name: "Acme", baseURL: "https://a.dev/v1" }, models: ["m1"], lastError: "401" })
+    expect((await store.get("acme"))?.lastError).toBe("401")
+    await store.save({ def: { id: "acme", name: "Acme", baseURL: "https://a.dev/v1" }, models: ["m1"] })
+    expect((await store.get("acme"))?.lastError).toBeUndefined()
+  })
+
   it("scans only its own prefix", async () => {
     const { store, kv } = makeStore()
     await kv.set("decision-cache/x", { n: 1 })

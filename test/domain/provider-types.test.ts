@@ -83,6 +83,9 @@ describe("errorMessage", () => {
     expect(errorMessage({ message: "Transport" })).toBe(
       "could not reach the OpenCode server — check that it is running",
     )
+    expect(errorMessage({ message: "RPC call failed" })).toBe(
+      "the custom-provider service did not answer — restart OpenCode and try again",
+    )
   })
 
   it("falls back to type-only or stringified rendering, never [object Object]", () => {

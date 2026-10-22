@@ -126,13 +126,21 @@ function usageError(detail: string): ProviderInputError {
   )
 }
 
-export function formatStatus(providers: { id: string; name: string; baseURL: string; modelCount: number; hasCredential: boolean }[]): string {
+export function formatStatus(providers: {
+  id: string
+  name: string
+  baseURL: string
+  modelCount: number
+  hasCredential: boolean
+  lastError?: string
+}[]): string {
   if (providers.length === 0) {
-    return "Custom providers: none — add one with /custom-connect add id=<id> name=<Name> base=<url> [key=<key>]"
+    return "Custom providers: none — add one with /web-custom-connect add id=<id> name=<Name> base=<url> [key=<key>]"
   }
   const lines = providers.map((p) => {
     const credential = p.hasCredential ? "credential saved" : "keyless"
-    return `- ${p.id} (${p.name}) → ${p.baseURL} · ${p.modelCount} models · ${credential}`
+    const health = p.lastError === undefined ? "" : ` · LAST REFRESH FAILED: ${p.lastError}`
+    return `- ${p.id} (${p.name}) → ${p.baseURL} · ${p.modelCount} models · ${credential}${health}`
   })
   return `Custom providers:\n${lines.join("\n")}`
 }

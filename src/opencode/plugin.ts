@@ -51,11 +51,11 @@ export default Plugin.define({
       // the documented fallback. The TUI keeps /custom-connect and
       // /custom-models dialogs; these arg-grammar commands serve the web UI.
       editor.add({
-        name: "custom-provider-connect",
+        name: "web-custom-connect",
         description:
-          "Custom providers (web UI): /custom-provider-connect | add id=<id> name=<Name> base=<url> [key=<key>] | edit id=<id> [name=<Name>] [base=<url>] [key=<key>] | remove id=<id>",
+          "Custom providers (web UI): /web-custom-connect | add id=<id> name=<Name> base=<url> [key=<key>] | edit id=<id> [name=<Name>] [base=<url>] [key=<key>] | remove id=<id>",
         execute: async ({ sessionID, prompt }) => {
-          const text = prompt.text.replace(/^\/custom-provider-connect\b\s*/i, "")
+          const text = prompt.text.replace(/^\/web-custom-connect\b\s*/i, "")
           try {
             const action = parseConnectArgs(text)
             let reply: string
@@ -94,11 +94,11 @@ export default Plugin.define({
         },
       })
       editor.add({
-        name: "custom-provider-models",
+        name: "web-custom-models",
         description:
-          "Custom provider models (web UI): /custom-provider-models | /custom-provider-models <id> | /custom-provider-models <id> default <modelID>",
+          "Custom provider models (web UI): /web-custom-models | /web-custom-models <id> | /web-custom-models <id> default <modelID>",
         execute: async ({ sessionID, prompt }) => {
-          const text = prompt.text.replace(/^\/custom-provider-models\b\s*/i, "")
+          const text = prompt.text.replace(/^\/web-custom-models\b\s*/i, "")
           try {
             const action = parseModelsArgs(text)
             let reply: string

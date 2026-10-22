@@ -1,4 +1,4 @@
-import { ProviderInputError, slugify, validateProviderId, normalizeBaseURL } from "../domain/provider-types.ts"
+import { ProviderInputError, slugify, validateProviderId, normalizeBaseURL, errorMessage } from "../domain/provider-types.ts"
 import { seedsFromIds } from "../domain/inventory.ts"
 import type { ProviderStore, ProviderRecord } from "../ports/provider-store.ts"
 import type { CredentialStore } from "../ports/credential-store.ts"
@@ -27,6 +27,8 @@ export interface ProviderStatus {
   baseURL: string
   modelCount: number
   hasCredential: boolean
+  /** Reason the last inventory fetch failed; absent = the endpoint was healthy. */
+  lastError?: string
 }
 
 export interface CustomProviderServiceDeps {
@@ -66,7 +68,7 @@ export class CustomProviderService {
     await this.deps.credentials.save(id, key)
     await this.deps.store.save({ def, models })
     await this.deps.catalog.register(def, seedsFromIds(models))
-    return this.statusFor(def, models, key !== null)
+    return this.statusFor(def, models, key !== null, undefined)
   }
 
   async edit(id: string, patch: EditProviderInput): Promise<ProviderStatus> {
@@ -87,13 +89,20 @@ export class CustomProviderService {
     let models = record.models
     if (baseURLChanged || keyProvided) {
       const effectiveKey = keyProvided ? key : await this.deps.credentials.resolve(id)
-      models = await this.deps.endpoint.fetchModels(def.baseURL, effectiveKey)
+      try {
+        models = await this.deps.endpoint.fetchModels(def.baseURL, effectiveKey)
+      } catch (error) {
+        // The stored definition is untouched, but the endpoint is now known
+        // to be unhealthy — record it so every client can show the state.
+        await this.deps.store.save({ def: record.def, models: record.models, lastError: errorMessage(error) })
+        throw error
+      }
     }
     if (keyProvided) await this.deps.credentials.save(id, key)
     await this.deps.store.save({ def, models })
     await this.deps.catalog.register(def, seedsFromIds(models))
     const hasCredential = (await this.deps.credentials.resolve(id)) !== null
-    return this.statusFor(def, models, hasCredential)
+    return this.statusFor(def, models, hasCredential, undefined)
   }
 
   async remove(id: string): Promise<void> {
@@ -104,13 +113,20 @@ export class CustomProviderService {
   }
 
   /**
-   * Explicit refresh. On failure the stored inventory is kept untouched and
-   * the error propagates to the caller for display.
+   * Explicit refresh. On failure the stored inventory is kept untouched, the
+   * failure reason is persisted as the provider's health, and the error
+   * propagates to the caller for display.
    */
   async refresh(id: string): Promise<string[]> {
     const record = await this.require(id)
     const key = await this.deps.credentials.resolve(id)
-    const models = await this.deps.endpoint.fetchModels(record.def.baseURL, key)
+    let models: string[]
+    try {
+      models = await this.deps.endpoint.fetchModels(record.def.baseURL, key)
+    } catch (error) {
+      await this.deps.store.save({ def: record.def, models: record.models, lastError: errorMessage(error) })
+      throw error
+    }
     await this.deps.store.save({ def: record.def, models })
     await this.deps.catalog.register(record.def, seedsFromIds(models))
     return models
@@ -120,7 +136,7 @@ export class CustomProviderService {
     const statuses: ProviderStatus[] = []
     for (const record of await this.deps.store.list()) {
       const hasCredential = (await this.deps.credentials.resolve(record.def.id)) !== null
-      statuses.push(this.statusFor(record.def, record.models, hasCredential))
+      statuses.push(this.statusFor(record.def, record.models, hasCredential, record.lastError))
     }
     return statuses
   }
@@ -150,8 +166,10 @@ export class CustomProviderService {
     }
   }
 
-  private statusFor(def: ProviderRecord["def"], models: string[], hasCredential: boolean): ProviderStatus {
-    return { id: def.id, name: def.name, baseURL: def.baseURL, modelCount: models.length, hasCredential }
+  private statusFor(def: ProviderRecord["def"], models: string[], hasCredential: boolean, lastError: string | undefined): ProviderStatus {
+    const status: ProviderStatus = { id: def.id, name: def.name, baseURL: def.baseURL, modelCount: models.length, hasCredential }
+    if (lastError !== undefined) status.lastError = lastError
+    return status
   }
 }
 

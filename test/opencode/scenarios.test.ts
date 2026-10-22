@@ -73,16 +73,16 @@ describe("custom-provider use cases", () => {
     const ctx = makeCtx()
     await setup(ctx)
 
-    await ctx.run("custom-provider-connect", "add id=acme name=Acme base=https://a.dev/v1 key=sk-1")
-    await ctx.run("custom-provider-models", "acme")
+    await ctx.run("web-custom-connect", "add id=acme name=Acme base=https://a.dev/v1 key=sk-1")
+    await ctx.run("web-custom-models", "acme")
     expect(lastSynthetic(ctx)).toContain("Models for acme:")
     expect(lastSynthetic(ctx)).toContain("- acme/m1")
 
-    await ctx.run("custom-provider-models", "acme default m1")
+    await ctx.run("web-custom-models", "acme default m1")
     expect(ctx.modelDefaults.at(-1)).toEqual({ providerID: "acme", modelID: "m1" })
     expect(ctx.switches.at(-1)).toMatchObject({ sessionID: "s1", model: { providerID: "acme", id: "m1" } })
 
-    await ctx.run("custom-provider-connect", "remove id=acme")
+    await ctx.run("web-custom-connect", "remove id=acme")
     expect(lastSynthetic(ctx)).toContain('Removed custom provider "acme"')
     expect(ctx.providers.size).toBe(0)
   })
@@ -109,6 +109,9 @@ describe("custom-provider use cases", () => {
     await expect(rpcCall(ctx.rpc(), "edit", { id: "acme", baseURL: "https://b.dev/v1" })).rejects.toThrow(/500/)
     expect(ctx.providers.get("acme")?.models.map((m) => m["id"])).toEqual(["m1", "m2"])
     expect((ctx.providers.get("acme")?.info["settings"] as Record<string, unknown>)["baseURL"]).toBe("https://a.dev/v1")
+    // The failure shows up as the provider's health in status.
+    const status = await rpcCall<{ providers: { lastError?: string }[] }>(ctx.rpc(), "status", {})
+    expect(status.providers[0]?.lastError).toContain("500")
   })
 
   it("rejects unknown providers and duplicate ids", async () => {
@@ -162,10 +165,10 @@ describe("custom-provider use cases", () => {
     stubFetch({ data: [{ id: "m1" }] })
     const ctx = makeCtx()
     await setup(ctx)
-    await ctx.run("custom-provider-connect", "add name=Acme base=not-a-url")
+    await ctx.run("web-custom-connect", "add name=Acme base=not-a-url")
     expect(ctx.synthetics.at(-1)?.resume).toBe(false)
     expect(lastSynthetic(ctx)).toContain("not a valid http(s) URL")
-    await ctx.run("custom-provider-models", "ghost")
+    await ctx.run("web-custom-models", "ghost")
     expect(lastSynthetic(ctx)).toContain("ghost")
   })
 })

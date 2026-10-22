@@ -51,7 +51,7 @@ from `@coool/opencode-decision-mode`.
 - **Command-name shadowing (CONFIRMED live 2026-10-21)**: a server command
   with the SAME name as a TUI client slash entry shows up twice in the
   palette. The fallback is applied: server commands are named
-  `custom-provider-connect` / `custom-provider-models` (web UI, arg grammar),
+  `web-custom-connect` / `web-custom-models` (web UI, arg grammar),
   while the TUI keeps the `/custom-connect` / `/custom-models` dialogs.
 - **RPC handlers are location-scoped**: `ctx.rpc.register` handlers resolve
   against the CALLER's location. A location-less request resolves the plugin

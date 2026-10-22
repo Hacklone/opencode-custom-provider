@@ -120,6 +120,13 @@ describe("formatStatus", () => {
     expect(text).toContain("- acme (Acme) → https://a.dev/v1 · 3 models · credential saved")
     expect(text).toContain("- local (Local) → http://127.0.0.1:8000/v1 · 0 models · keyless")
   })
+
+  it("surfaces the health error of an unhealthy provider", () => {
+    const text = formatStatus([
+      { id: "acme", name: "Acme", baseURL: "https://a.dev/v1", modelCount: 3, hasCredential: true, lastError: "HTTP 401 — check the API key" },
+    ])
+    expect(text).toContain("LAST REFRESH FAILED: HTTP 401 — check the API key")
+  })
 })
 
 describe("formatModels", () => {

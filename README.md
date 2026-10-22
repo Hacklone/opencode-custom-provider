@@ -5,7 +5,7 @@ OpenAI-compatible endpoints as providers — no config files, everything from
 the TUI or the web UI.
 
 ```
-❯ /custom-provider-connect add id=llama name="My LlamaBox" base=http://127.0.0.1:8080/v1
+❯ /web-custom-connect add id=llama name="My LlamaBox" base=http://127.0.0.1:8080/v1
   ✓ llama registered — 4 models loaded from /v1/models
 ❯ /models        # llama/* now appears in the picker
 ```
@@ -13,7 +13,7 @@ the TUI or the web UI.
 ## What you get
 
 - **`/custom-connect`** — guided dialogs in the TUI (in the web UI:
-  `/custom-provider-connect`, see below). Add, edit, remove, and list custom
+  `/web-custom-connect`, see below). Add, edit, remove, and list custom
   providers.
 - **Safe-store credentials** — API keys are saved through OpenCode's
   integration API, so they show up in `/connect` and `opencode auth list`
@@ -59,13 +59,13 @@ The server command names differ from the TUI slash names on purpose — a
 same-named pair appears twice in the TUI palette (verified empirically).
 
 ```
-/custom-provider-connect                                        → status list
-/custom-provider-connect add id=<id> name=<Name> base=<url> [key=<key>]
-/custom-provider-connect edit id=<id> [name=<Name>] [base=<url>] [key=<key>]
-/custom-provider-connect remove id=<id>
-/custom-provider-models                                         → list providers
-/custom-provider-models <id>                                    → refresh + list models
-/custom-provider-models <id> default <modelID>                  → catalog default + switch session
+/web-custom-connect                                        → status list
+/web-custom-connect add id=<id> name=<Name> base=<url> [key=<key>]
+/web-custom-connect edit id=<id> [name=<Name>] [base=<url>] [key=<key>]
+/web-custom-connect remove id=<id>
+/web-custom-models                                         → list providers
+/web-custom-models <id>                                    → refresh + list models
+/web-custom-models <id> default <modelID>                  → catalog default + switch session
 ```
 
 Values containing spaces must be double-quoted: `name="My Provider"`.
@@ -73,14 +73,16 @@ Values containing spaces must be double-quoted: `name="My Provider"`.
 Provider IDs are slugged and must be unique; the ID is immutable after
 creation. Editing the base URL or key re-fetches the inventory immediately. A
 failed re-fetch keeps the stored inventory and reports the error — the
-provider never disappears because an endpoint hiccuped.
+provider never disappears because an endpoint hiccuped. The failure is also
+recorded as the provider's health and shown in every provider list
+(`LAST REFRESH FAILED: <reason>`) until a refresh succeeds.
 
 ### Example
 
 ```
-/custom-provider-connect add id=openrouter name=OpenRouter base=https://openrouter.ai/api/v1 key=sk-or-...
-/custom-provider-models openrouter
-/custom-provider-models openrouter default anthropic/claude-sonnet-4.5
+/web-custom-connect add id=openrouter name=OpenRouter base=https://openrouter.ai/api/v1 key=sk-or-...
+/web-custom-models openrouter
+/web-custom-models openrouter default anthropic/claude-sonnet-4.5
 ```
 
 ## How credentials work

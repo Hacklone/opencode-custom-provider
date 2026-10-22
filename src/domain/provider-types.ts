@@ -86,5 +86,9 @@ function describeError(type: string, message: string): string {
   if (message === "Transport") {
     return "could not reach the OpenCode server — check that it is running"
   }
+  // The host's generic rpc failure carries no detail; replace the jargon.
+  if (message === "RPC call failed") {
+    return "the custom-provider service did not answer — restart OpenCode and try again"
+  }
   return message
 }

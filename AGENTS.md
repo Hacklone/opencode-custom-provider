@@ -161,7 +161,35 @@ from `@coool/opencode-decision-mode`.
 npm install          # once
 npm run typecheck    # tsc --noEmit — must be clean
 npm test             # vitest + 100% coverage gate
+npm run e2e          # server-level e2e against a real opencode serve
 ```
+
+## Server-level e2e (`scripts/e2e.mjs`)
+
+- Boots the mock LLM in-process, builds a throwaway sandbox
+  (`.opencode/plugins/custom-provider` with shims + src + node_modules
+  symlink), spawns a real `opencode serve`, and drives the full lifecycle
+  over HTTP with fail-fast assertions: settlement, connect (inventory +
+  credential), provider/model/integration/credential visibility, auto-default,
+  a REAL chat round-trip ("MOCK-OK via <model>"), baseURL-edit refetch,
+  validate-before-save rejection, refresh, remove (leftover-credential
+  reporting), and offline restore across a cold restart.
+- **Isolation**: the serve gets its own `OPENCODE_DB` and `XDG_DATA_HOME`
+  inside the sandbox — the user's real safe store and service are never
+  touched. `E2E_KEEP=1` keeps the sandbox for post-mortem.
+- **Serve auth is HTTP Basic `opencode:<password>`** (verified in
+  @opencode/client's service wiring) — Bearer is rejected.
+- **`opencode serve` may detach its real server into a grandchild** that
+  outlives the spawned child (orphaned, PPID 1, keeps the listen socket).
+  stopServe therefore SIGTERMs the child, then SIGKILLs whatever still holds
+  the port (`lsof -tiTCP:<port>`).
+- **`process.exit` inside a try skips its `finally`** — the PASS print and
+  exit live after the try/finally, so teardown always runs (verified: the
+  serve survived when the exit preceded it).
+- `/api/plugin` does NOT list locally-discovered plugins — the rpc
+  settlement poll is the "plugin loaded" proof, not `/api/plugin`.
+- The rpc route body is `{"input": …}`; a missing input must serialize as
+  `{}` (JSON.stringify drops undefined keys; a bare `{}` body is rejected).
 
 Live smoke test: copy `src/` into a sandbox project's
 `.opencode/plugins/custom-provider/` keeping the root `index.ts` shim (local

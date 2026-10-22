@@ -113,7 +113,14 @@ the plugin never polls your endpoints in the background.
 npm install
 npm run typecheck    # tsc --noEmit
 npm test             # vitest with a 100% coverage gate
+npm run e2e          # server-level e2e against a real opencode serve
 ```
+
+`npm run e2e` boots the mock LLM, builds a throwaway sandbox with the plugin
+linked in, spawns a real `opencode serve` (with its own isolated database and
+data directory — your environment is never touched), and drives the full
+provider lifecycle over the server API with hard assertions, including a real
+chat round-trip and an offline-restore restart.
 
 A local OpenAI-compatible mock endpoint lives at `scripts/mock-llm/server.mjs`
 (`node scripts/mock-llm/server.mjs` → `http://127.0.0.1:8991/v1`, key

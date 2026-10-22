@@ -87,7 +87,13 @@ describe("custom-provider use cases", () => {
     stubFetch({ data: [{ id: "m1" }] }, 401)
     const ctx = makeCtx()
     await setup(ctx)
-    await expect(rpcCall(ctx.rpc(), "connect", { name: "Acme", baseURL: "https://a.dev/v1", key: "bad" })).rejects.toThrow(/401/)
+    // Handler failures surface as the declared provider_error (a plain throw
+    // would defect server-side and hide the message behind "RPC call failed").
+    const failure = (await rpcCall<{ __rpcError: boolean; type: string; message: string }>(
+      ctx.rpc(), "connect", { name: "Acme", baseURL: "https://a.dev/v1", key: "bad" },
+    )) as { __rpcError: boolean; type: string; message: string }
+    expect(failure.type).toBe("provider_error")
+    expect(failure.message).toMatch(/401/)
     expect(ctx.providers.size).toBe(0)
     expect(await rpcCall(ctx.rpc(), "status", {})).toEqual({ providers: [] })
   })
@@ -102,7 +108,10 @@ describe("custom-provider use cases", () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ error: "boom" }), { status: 500, headers: { "content-type": "application/json" } }),
     )
-    await expect(rpcCall(ctx.rpc(), "edit", { id: "acme", baseURL: "https://b.dev/v1" })).rejects.toThrow(/500/)
+    // Handler failures surface as the declared provider_error, not as rejections.
+    const failure = (await rpcCall<{ type: string; message: string }>(ctx.rpc(), "edit", { id: "acme", baseURL: "https://b.dev/v1" })) as { __rpcError: boolean; type: string; message: string }
+    expect(failure.type).toBe("provider_error")
+    expect(failure.message).toMatch(/500/)
     expect(ctx.providers.get("acme")?.models.map((m) => m["id"])).toEqual(["m1", "m2"])
     expect((ctx.providers.get("acme")?.info["settings"] as Record<string, unknown>)["baseURL"]).toBe("https://a.dev/v1")
     // The failure shows up as the provider's health in status.
@@ -115,9 +124,15 @@ describe("custom-provider use cases", () => {
     const ctx = makeCtx()
     await setup(ctx)
     await rpcCall(ctx.rpc(), "connect", { name: "Acme", baseURL: "https://a.dev/v1" })
-    await expect(rpcCall(ctx.rpc(), "connect", { name: "Acme", baseURL: "https://a.dev/v1" })).rejects.toThrow(/acme/)
-    await expect(rpcCall(ctx.rpc(), "refresh", { id: "ghost" })).rejects.toThrow(/ghost/)
-    await expect(rpcCall(ctx.rpc(), "remove", { id: "ghost" })).rejects.toThrow(/ghost/)
+    const duplicate = (await rpcCall(ctx.rpc(), "connect", { name: "Acme", baseURL: "https://a.dev/v1" })) as { __rpcError: boolean; type: string; message: string }
+    expect(duplicate.type).toBe("provider_error")
+    expect(duplicate.message).toMatch(/acme/)
+    const ghostRefresh = (await rpcCall(ctx.rpc(), "refresh", { id: "ghost" })) as { type: string; message: string }
+    expect(ghostRefresh.type).toBe("provider_error")
+    expect(ghostRefresh.message).toMatch(/ghost/)
+    const ghostRemove = (await rpcCall(ctx.rpc(), "remove", { id: "ghost" })) as { type: string; message: string }
+    expect(ghostRemove.type).toBe("provider_error")
+    expect(ghostRemove.message).toMatch(/ghost/)
   })
 
   it("keyless providers round-trip without a credential", async () => {

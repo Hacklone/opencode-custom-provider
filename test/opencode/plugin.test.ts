@@ -87,7 +87,11 @@ describe("custom-provider plugin", () => {
     const call = async <T>(name: string, input: unknown): Promise<T> => {
       const handler = rpc[name]
       if (handler === undefined) throw new Error(`missing rpc handler ${name}`)
-      return (await handler(input as never)) as T
+      const context = {
+        signal: new AbortController().signal,
+        error: (type: string, message: string, data?: Record<string, unknown>) => ({ __rpcError: true, type, message, data }),
+      }
+      return (await handler(input as never, context as never)) as T
     }
     const status = await call<{ providers: { id: string }[] }>("status", {})
     expect(status.providers).toEqual([])

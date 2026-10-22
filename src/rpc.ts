@@ -4,7 +4,14 @@ import { Rpc } from "@opencode/plugin/rpc"
 /**
  * Server↔TUI contract. Schemas MUST be zod (Standard Schema): the runtime's
  * rpc.register silently ignores raw JSON Schema literals (empirical).
+ *
+ * Every method declares `provider_error`: handler failures MUST be returned
+ * via the handler context's `error()` helper — a plain throw becomes a server
+ * DEFECT and the client only sees the generic "RPC call failed" with the real
+ * message swallowed (verified live via the service log, 2026-10-22).
  */
+const providerError = { provider_error: z.object({}) }
+
 const providerStatus = z.object({
   id: z.string(),
   name: z.string(),
@@ -22,6 +29,7 @@ export const CustomProviderRpc = Rpc.define({
     status: {
       input: z.object({}),
       output: z.object({ providers: z.array(providerStatus) }),
+      errors: providerError,
     },
     connect: {
       input: z.object({
@@ -31,6 +39,7 @@ export const CustomProviderRpc = Rpc.define({
         key: z.string().nullable().optional(),
       }),
       output: providerStatus,
+      errors: providerError,
     },
     edit: {
       input: z.object({
@@ -39,14 +48,17 @@ export const CustomProviderRpc = Rpc.define({
         baseURL: z.string().optional(),
       }),
       output: providerStatus,
+      errors: providerError,
     },
     remove: {
       input: z.object({ id: z.string() }),
       output: z.object({ hadCredential: z.boolean() }),
+      errors: providerError,
     },
     refresh: {
       input: z.object({ id: z.string() }),
       output: z.object({ id: z.string(), models: z.array(z.string()) }),
+      errors: providerError,
     },
   },
   events: {},

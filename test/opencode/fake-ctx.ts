@@ -11,15 +11,26 @@ export interface RegisteredCommand {
   execute(input: { sessionID: string; prompt: { text: string } }): Promise<void>
 }
 
-/** Invokes a captured rpc handler by name with a checked lookup. */
+/** Invokes a captured rpc handler by name with a checked lookup. Handlers
+ * receive a context whose `error()` returns a tagged error object, mirroring
+ * the runtime convention (declared errors surface to clients as {type,message}). */
 export async function rpcCall<T>(
-  rpc: Record<string, (input: never) => Promise<unknown>>,
+  rpc: Record<string, (input: never, context: never) => Promise<unknown>>,
   name: string,
   input: unknown,
 ): Promise<T> {
   const handler = rpc[name]
   if (handler === undefined) throw new Error(`missing rpc handler ${name}`)
-  return (await handler(input as never)) as T
+  const context = {
+    signal: new AbortController().signal,
+    error: (type: string, message: string, data?: Record<string, unknown>) => ({
+      __rpcError: true,
+      type,
+      message,
+      data,
+    }),
+  }
+  return (await handler(input as never, context as never)) as T
 }
 
 export function makeCtx(seed: Record<string, unknown> = {}) {
@@ -142,8 +153,8 @@ export function makeCtx(seed: Record<string, unknown> = {}) {
       },
     },
     rpc: {
-      register: async (_definition: unknown, handlers: Record<string, (input: never) => Promise<unknown>>) => {
-        rpcHandlers = handlers as Record<string, (input: never) => Promise<unknown>>
+      register: async (_definition: unknown, handlers: Record<string, (input: never, context: never) => Promise<unknown>>) => {
+        rpcHandlers = handlers as Record<string, (input: never, context: never) => Promise<unknown>>
         return {
           dispose: () => {
             disposables.push("rpc")
@@ -153,7 +164,7 @@ export function makeCtx(seed: Record<string, unknown> = {}) {
       },
     },
   }
-  let rpcHandlers: Record<string, (input: never) => Promise<unknown>> = {}
+  let rpcHandlers: Record<string, (input: never, context: never) => Promise<unknown>> = {}
 
   const run = async (commandName: string, text: string, sessionID = "s1"): Promise<void> => {
     const command = commands.find((c) => c.name === commandName)

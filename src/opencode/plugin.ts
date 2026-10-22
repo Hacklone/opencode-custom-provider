@@ -96,15 +96,29 @@ export default Plugin.define({
       })
     })
 
+    /** Minimal structural view of the RPC handler context (second argument). */
+interface RpcHandlerContext {
+  error(type: string, message: string, data?: Record<string, unknown>): unknown
+}
+
+    /**
+     * Handler failures MUST be surfaced as the declared `provider_error`
+     * (returned via context.error): a plain throw becomes a server DEFECT and
+     * the client only sees the generic "RPC call failed" with the real
+     * message swallowed (verified live via the service log, 2026-10-22).
+     */
+    const guard = <H>(context: RpcHandlerContext, run: () => Promise<H>): Promise<H> =>
+      run().catch((error: unknown): H => context.error("provider_error", errorMessage(error), {}) as H)
+
     const rpcRegistration = await ctx.rpc.register(CustomProviderRpc, {
-      status: async () => ({ providers: await service.list() }),
-      connect: async (input) => await service.add(input),
-      edit: async (input) => await service.edit(input.id, {
+      status: (_input, context) => guard(context, async () => ({ providers: await service.list() })),
+      connect: (input, context) => guard(context, () => service.add(input)),
+      edit: (input, context) => guard(context, () => service.edit(input.id, {
         name: input.name,
         baseURL: input.baseURL,
-      }),
-      remove: async (input) => await service.remove(input.id),
-      refresh: async (input) => ({ id: input.id, models: await service.refresh(input.id) }),
+      })),
+      remove: (input, context) => guard(context, () => service.remove(input.id)),
+      refresh: (input, context) => guard(context, async () => ({ id: input.id, models: await service.refresh(input.id) })),
     })
 
     return () => {

@@ -131,12 +131,21 @@ export default Plugin.define({
         const nextBaseURL = await context.ui.dialog.prompt({ title: "Base URL", placeholder: baseURL, value: baseURL })
         if (nextBaseURL === undefined) return
         baseURL = nextBaseURL.trim()
+        // With prefilled fields, submitting unchanged is the natural no-op —
+        // skip the call instead of tripping "edit needs at least one of name
+        // or base" on the server.
+        const nameChanged = name !== provider.name && name.length > 0
+        const baseURLChanged = baseURL !== provider.baseURL && baseURL.length > 0
+        if (!nameChanged && !baseURLChanged) {
+          context.ui.toast.show({ title: "Nothing to change", message: provider.id, variant: "info" })
+          return
+        }
         try {
           const status = await rpc().edit(
             {
               id: provider.id,
-              name: name !== provider.name && name.length > 0 ? name : undefined,
-              baseURL: baseURL !== provider.baseURL && baseURL.length > 0 ? baseURL : undefined,
+              name: nameChanged ? name : undefined,
+              baseURL: baseURLChanged ? baseURL : undefined,
             },
             rpcOptions(),
           )

@@ -42,6 +42,16 @@ from `@coool/opencode-decision-mode`.
 - **RPC schemas must be zod (Standard Schema)**: raw JSON Schema literals are
   silently ignored by `ctx.rpc.register` (verified empirically in
   decision-mode).
+- **RPC handler failures must be declared + returned via `context.error`**
+  (verified live 2026-10-22 via the service log): a plain `throw` inside an
+  rpc handler becomes a server DEFECT — the runtime logs
+  "rpc handler failed" and answers with the generic
+  `{type:"rpc.internal",message:"RPC call failed"}`, swallowing the real
+  message. Every method therefore declares
+  `errors: { provider_error: z.object({}) }` and every handler wraps its
+  service call in `guard()`, returning
+  `context.error("provider_error", errorMessage(error), {})`. The client then
+  rejects with `{type, message}` and the real message survives.
 - **Transforms are synchronous**: `ctx.provider.transform` callbacks may not
   await. Load data (model lists, credentials) before the callback, then call
   `ctx.provider.reload()` after the captured inputs change.

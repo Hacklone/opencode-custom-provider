@@ -117,6 +117,10 @@ from `@coool/opencode-decision-mode`.
   a branch is unreachable, delete the branch instead of weakening the gate.
 - Tests assert behavior through public methods with in-memory fakes
   (`test/fakes.ts`). Adapters are tested with injected/mocked dependencies.
+- The TUI entry (`src/tui.tsx`) only runs inside OpenTUI and stays manually
+  verified — but its DECISION logic must live in `src/domain/` (pure,
+  unit-tested), not inline in the JSX. The edit-dialog decision is
+  `src/domain/provider-edit.ts`; extract new dialog decisions the same way.
 - Determinism: no sleeps, no real network, no real clocks. Exception: the
   `scripts/mock-llm` integration tests start the mock in-process on an
   ephemeral loopback port — loopback only, never an external network.

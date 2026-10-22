@@ -20,6 +20,7 @@
  */
 import { Plugin } from "@opencode/plugin/tui"
 import { errorMessage } from "./domain/provider-types.ts"
+import { editSubmission } from "./domain/provider-edit.ts"
 import { CustomProviderRpc, type ProviderStatus } from "../rpc.ts"
 
 export default Plugin.define({
@@ -127,26 +128,18 @@ export default Plugin.define({
       for (;;) {
         const nextName = await context.ui.dialog.prompt({ title: "Provider name", placeholder: name, value: name })
         if (nextName === undefined) return
-        name = nextName.trim()
         const nextBaseURL = await context.ui.dialog.prompt({ title: "Base URL", placeholder: baseURL, value: baseURL })
         if (nextBaseURL === undefined) return
-        baseURL = nextBaseURL.trim()
-        // With prefilled fields, submitting unchanged is the natural no-op —
-        // skip the call instead of tripping "edit needs at least one of name
-        // or base" on the server.
-        const nameChanged = name !== provider.name && name.length > 0
-        const baseURLChanged = baseURL !== provider.baseURL && baseURL.length > 0
-        if (!nameChanged && !baseURLChanged) {
+        // Decision extracted to domain (tested): unchanged submit is a no-op,
+        // cleared fields keep the current value.
+        const submission = editSubmission(provider, nextName, nextBaseURL)
+        if (submission.kind === "noop") {
           context.ui.toast.show({ title: "Nothing to change", message: provider.id, variant: "info" })
           return
         }
         try {
           const status = await rpc().edit(
-            {
-              id: provider.id,
-              name: nameChanged ? name : undefined,
-              baseURL: baseURLChanged ? baseURL : undefined,
-            },
+            { id: provider.id, name: submission.name, baseURL: submission.baseURL },
             rpcOptions(),
           )
           context.ui.toast.show({
@@ -160,6 +153,9 @@ export default Plugin.define({
             title: `Could not update ${provider.name}`,
             message: `${errorMessage(error)}\n\nThe values are kept — fix them and try again, or press Esc to cancel.`,
           })
+          // Re-prompt with the attempted values still filled in.
+          name = submission.name ?? provider.name
+          baseURL = submission.baseURL ?? provider.baseURL
         }
       }
     }

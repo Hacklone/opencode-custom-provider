@@ -155,13 +155,17 @@ export default Plugin.define({
     const removeFlow = async (provider: ProviderStatus) => {
       const confirmed = await context.ui.dialog.confirm({
         title: `Remove ${provider.name}?`,
-        message: `Provider "${provider.id}" and its saved credential registration will be removed.`,
+        message: provider.hasCredential
+          ? `Provider "${provider.id}" will be unregistered. Its API key stays in OpenCode's safe store — delete it afterwards via /connect.`
+          : `Provider "${provider.id}" will be unregistered.`,
       })
       if (confirmed !== true) return
-      await rpc().remove({ id: provider.id }, rpcOptions())
+      const { hadCredential } = await rpc().remove({ id: provider.id }, rpcOptions())
       context.ui.toast.show({
         title: "Custom provider removed",
-        message: provider.id,
+        message: hadCredential
+          ? `${provider.id} — its API key remains in the safe store. Delete it via /connect ("custom-provider: ${provider.id}") or "opencode auth logout ${provider.id}".`
+          : provider.id,
         variant: "success",
       })
     }
@@ -190,7 +194,7 @@ export default Plugin.define({
           options: [
             { value: "edit", title: "Edit", description: "Rename or change the base URL (rotate keys via /connect)" },
             { value: "refresh", title: "Refresh", description: "Re-fetch the model inventory from the endpoint" },
-            { value: "remove", title: "Remove", description: "Unregister and drop its credential" },
+            { value: "remove", title: "Remove", description: "Unregister the provider" },
           ],
         })
         if (action === "edit") await editFlow(picked)

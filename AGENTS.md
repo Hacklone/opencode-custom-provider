@@ -69,6 +69,17 @@ from `@coool/opencode-decision-mode`.
   AND mirrored into plugin storage as a fallback, because integration upsert
   semantics are not guaranteed. Resolution order: integration connection first,
   storage fallback second.
+- **Removed providers keep their safe-store credentials (verified live
+  2026-10-22)**: `ctx.credential` exposes only `activate` (checked in 2.0.32
+  AND 2.1.2) — plugins cannot delete credentials — and integration
+  `editor.remove` does not cascade. On remove WITH a key the plugin-storage
+  fallback is dropped but the integration registration is deliberately KEPT,
+  so `/connect` and `opencode auth logout <id>` can still manage the saved
+  accounts (verified: once deregistered, `opencode auth logout <id>` fails
+  with "Integration not found"). The kept integration is registry state and
+  disappears at the next restart; truly orphaned credentials remain in SQLite
+  and can only be removed via `DELETE /api/credential/<credentialID>`. Each
+  key save accumulates one credential entry (native account behavior).
 
 ## Model registration
 

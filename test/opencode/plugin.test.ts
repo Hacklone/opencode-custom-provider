@@ -103,7 +103,8 @@ describe("custom-provider plugin", () => {
     expect(refreshed).toEqual({ id: "acme", models: ["m1", "m2"] })
     // Auto-default on add already pointed the catalog default at the first model.
     expect(ctx.modelDefaults).toEqual([{ providerID: "acme", modelID: "m1" }])
-    await call("remove", { id: "acme" })
+    const removal = await call<{ hadCredential: boolean }>("remove", { id: "acme" })
+    expect(removal).toEqual({ hadCredential: true })
     expect(ctx.providers.has("acme")).toBe(false)
     expect(await call<{ providers: unknown[] }>("status", {})).toEqual({ providers: [] })
   })

@@ -178,29 +178,31 @@ describe("OpencodeCredentials.resolve", () => {
   })
 })
 
-describe("OpencodeCredentials.remove", () => {
-  it("drops the fallback and best-effort removes the integration", async () => {
+describe("OpencodeCredentials.forget / deregister", () => {
+  it("forget drops the fallback; deregister best-effort removes the integration", async () => {
     const { ctx, editors } = makeCtx({})
     const kv = new MemoryKv()
     await kv.set("custom-provider-secret/acme", "sk-1")
     const credentials = new OpencodeCredentials(ctx, kv)
-    await credentials.remove("acme")
+    await credentials.forget("acme")
     expect(await kv.get("custom-provider-secret/acme")).toBeUndefined()
+    await credentials.deregister("acme")
     expect(editors.removed).toEqual(["acme"])
   })
 
-  it("tolerates a failing integration removal", async () => {
+  it("deregister tolerates a failing integration removal", async () => {
     const { ctx } = makeCtx({ transformThrows: true })
     const credentials = new OpencodeCredentials(ctx, new MemoryKv())
-    await expect(credentials.remove("acme")).resolves.toBeUndefined()
+    await expect(credentials.deregister("acme")).resolves.toBeUndefined()
   })
 
-  it("works without a plugin context", async () => {
+  it("forget and deregister work without a plugin context", async () => {
     const kv = new MemoryKv()
     await kv.set("custom-provider-secret/acme", "sk-1")
     const credentials = new OpencodeCredentials(null, kv)
-    await credentials.remove("acme")
+    await credentials.forget("acme")
     expect(await kv.get("custom-provider-secret/acme")).toBeUndefined()
+    await expect(credentials.deregister("acme")).resolves.toBeUndefined()
   })
 })
 

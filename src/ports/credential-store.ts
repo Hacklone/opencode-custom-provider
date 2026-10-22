@@ -6,7 +6,15 @@
 export interface CredentialStore {
   save(id: string, key: string | null): Promise<void>
   resolve(id: string): Promise<string | null>
-  remove(id: string): Promise<void>
+  /** Drops the plugin-storage fallback copy of the key. */
+  forget(id: string): Promise<void>
+  /**
+   * Removes the /connect integration registration. Safe-store credentials are
+   * NOT deletable by a plugin (ctx.credential exposes only `activate`), so a
+   * provider removed WITH a key keeps its registration instead — that keeps
+   * the saved accounts manageable via /connect and `opencode auth logout`.
+   */
+  deregister(id: string): Promise<void>
   /**
    * Make the integration visible to /connect WITHOUT saving a key. Best
    * effort: implementations swallow failures (the storage fallback keeps

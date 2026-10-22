@@ -57,8 +57,11 @@ describe("custom-provider use cases", () => {
     // first model.
     expect(ctx.modelDefaults).toEqual([{ providerID: "acme", modelID: "m1" }])
 
-    // Remove tears the whole registration down.
-    await rpc("remove", { id: "acme" })
+    // Remove tears the whole registration down; the safe-store key stays
+    // (plugins cannot delete credentials) and the integration stays
+    // registered so /connect and `opencode auth logout` can clean it up.
+    const removal = (await rpc("remove", { id: "acme" })) as { hadCredential: boolean }
+    expect(removal).toEqual({ hadCredential: true })
     expect(ctx.providers.has("acme")).toBe(false)
     expect(await rpc("status", {})).toEqual({ providers: [] })
   })
@@ -75,6 +78,8 @@ describe("custom-provider use cases", () => {
 
     await ctx.run("web-custom-connect", "remove id=acme")
     expect(lastSynthetic(ctx)).toContain('Removed custom provider "acme"')
+    expect(lastSynthetic(ctx)).toContain("its API key remains in the safe store")
+    expect(lastSynthetic(ctx)).toContain("opencode auth logout acme")
     expect(ctx.providers.size).toBe(0)
   })
 

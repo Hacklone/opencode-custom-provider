@@ -97,6 +97,13 @@ Status output only ever shows booleans — key material never appears in logs
 or messages. See `docs/adr/0001-credentials-in-safe-store.md` for the
 trade-offs.
 
+Removing a provider cannot delete its safe-store credential (the plugin API
+offers no credential removal), so when a key exists the integration
+registration is kept and you are told how to clean up: delete the account in
+the built-in `/connect` dialog (under "custom-provider: <id>") or run
+`opencode auth logout <id>`. Each key save accumulates one credential entry
+(native account behavior).
+
 Inventory is fetched **only on demand** (connect, base-URL edit, refresh) —
 the plugin never polls your endpoints in the background.
 

@@ -112,11 +112,19 @@ export class CustomProviderService {
     return this.statusFor(def, models, hasCredential, undefined)
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<{ hadCredential: boolean }> {
     await this.require(id)
+    // Safe-store credentials cannot be deleted by a plugin (ctx.credential
+    // exposes only `activate`; integration editor.remove does not cascade).
+    // When a key exists the integration registration is deliberately KEPT so
+    // the saved accounts stay manageable via /connect and `opencode auth
+    // logout` — callers surface the leftover to the user.
+    const hadCredential = (await this.deps.credentials.resolve(id)) !== null
     await this.deps.store.remove(id)
-    await this.deps.credentials.remove(id)
+    await this.deps.credentials.forget(id)
+    if (!hadCredential) await this.deps.credentials.deregister(id)
     await this.deps.catalog.unregister(id)
+    return { hadCredential }
   }
 
   /**

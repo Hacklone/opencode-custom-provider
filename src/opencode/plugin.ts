@@ -80,10 +80,13 @@ export default Plugin.define({
                 reply = formatStatus([status])
                 break
               }
-              case "remove":
-                await service.remove(action.id)
-                reply = `Removed custom provider "${action.id}"`
+              case "remove": {
+                const { hadCredential } = await service.remove(action.id)
+                reply = hadCredential
+                  ? `Removed custom provider "${action.id}" — its API key remains in the safe store. Delete it via /connect ("custom-provider: ${action.id}") or \`opencode auth logout ${action.id}\`.`
+                  : `Removed custom provider "${action.id}"`
                 break
+              }
             }
             await say(sessionID, reply)
           } catch (error) {
@@ -100,10 +103,7 @@ export default Plugin.define({
         name: input.name,
         baseURL: input.baseURL,
       }),
-      remove: async (input) => {
-        await service.remove(input.id)
-        return {}
-      },
+      remove: async (input) => await service.remove(input.id),
       refresh: async (input) => ({ id: input.id, models: await service.refresh(input.id) }),
     })
 

@@ -42,7 +42,7 @@ export const CustomProviderRpc = Rpc.define({
     },
     remove: {
       input: z.object({ id: z.string() }),
-      output: z.object({}),
+      output: z.object({ hadCredential: z.boolean() }),
     },
     refresh: {
       input: z.object({ id: z.string() }),

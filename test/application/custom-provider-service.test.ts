@@ -186,13 +186,26 @@ describe("CustomProviderService.edit", () => {
 })
 
 describe("CustomProviderService.remove", () => {
-  it("clears the store, the credential, and the catalog entry", async () => {
+  it("reports a leftover credential and keeps the integration registered", async () => {
     const { service, store, credentials, catalog } = makeService()
     await service.add({ name: "Acme", baseURL: "https://a.dev/v1", key: "sk-1" })
-    await service.remove("acme")
+    const removal = await service.remove("acme")
+    expect(removal).toEqual({ hadCredential: true })
     expect(await store.get("acme")).toBeUndefined()
     expect(await credentials.resolve("acme")).toBeNull()
+    expect(credentials.forgotten).toEqual(["acme"])
+    // The integration stays registered so /connect and `opencode auth logout`
+    // can still manage the saved account (plugins cannot delete credentials).
+    expect(credentials.deregistered).toEqual([])
     expect(catalog.unregistered).toEqual(["acme"])
+  })
+
+  it("deregisters the integration for a keyless provider", async () => {
+    const { service, credentials } = makeService()
+    await service.add({ name: "Acme", baseURL: "https://a.dev/v1" })
+    const removal = await service.remove("acme")
+    expect(removal).toEqual({ hadCredential: false })
+    expect(credentials.deregistered).toEqual(["acme"])
   })
 
   it("rejects an unknown provider", async () => {

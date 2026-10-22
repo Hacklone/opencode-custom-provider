@@ -45,7 +45,7 @@ export class OpencodeCredentials implements CredentialStore {
     if (key === null) {
       // Keyless: drop the storage fallback. An integration credential, if any
       // exists from an earlier rotation, is simply not referenced anymore.
-      await this.kv.remove(SECRET_PREFIX + id)
+      await this.forget(id)
       return
     }
     this.kv.set(SECRET_PREFIX + id, key)
@@ -92,8 +92,11 @@ export class OpencodeCredentials implements CredentialStore {
     return typeof fallback === "string" && fallback.length > 0 ? fallback : null
   }
 
-  async remove(id: string): Promise<void> {
+  async forget(id: string): Promise<void> {
     await this.kv.remove(SECRET_PREFIX + id)
+  }
+
+  async deregister(id: string): Promise<void> {
     if (this.ctx === null) return
     try {
       await this.ctx.integration.transform((editor) => {

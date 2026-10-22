@@ -35,6 +35,8 @@ export class MemoryKv implements KeyValueStore {
 export class FakeCredentials implements CredentialStore {
   readonly saved: { id: string; key: string | null }[] = []
   readonly ensured: string[] = []
+  readonly forgotten: string[] = []
+  readonly deregistered: string[] = []
   private readonly keys = new Map<string, string | null>()
 
   async save(id: string, key: string | null): Promise<void> {
@@ -47,8 +49,13 @@ export class FakeCredentials implements CredentialStore {
     return this.keys.get(id) ?? null
   }
 
-  async remove(id: string): Promise<void> {
+  async forget(id: string): Promise<void> {
+    this.forgotten.push(id)
     this.keys.delete(id)
+  }
+
+  async deregister(id: string): Promise<void> {
+    this.deregistered.push(id)
   }
 
   async ensureRegistered(id: string): Promise<void> {

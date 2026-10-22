@@ -103,6 +103,28 @@ describe("OpencodeCredentials.save", () => {
   })
 })
 
+describe("OpencodeCredentials.ensureRegistered", () => {
+  it("registers the integration without saving a key", async () => {
+    const { ctx, editors, connected } = makeCtx({})
+    const credentials = new OpencodeCredentials(ctx, new MemoryKv())
+    await credentials.ensureRegistered("acme")
+    expect(editors.updated).toEqual([{ id: "acme", name: integrationDisplayName("acme") }])
+    expect(editors.methods).toEqual([{ integrationID: "acme", method: { type: "key", label: "API key" } }])
+    expect(connected).toEqual([])
+  })
+
+  it("tolerates a failing transform", async () => {
+    const { ctx } = makeCtx({ transformThrows: true })
+    const credentials = new OpencodeCredentials(ctx, new MemoryKv())
+    await expect(credentials.ensureRegistered("acme")).resolves.toBeUndefined()
+  })
+
+  it("does nothing without a plugin context", async () => {
+    const credentials = new OpencodeCredentials(null, new MemoryKv())
+    await expect(credentials.ensureRegistered("acme")).resolves.toBeUndefined()
+  })
+})
+
 describe("OpencodeCredentials.resolve", () => {
   it("resolves through the integration connection", async () => {
     const { ctx } = makeCtx({ active: { id: "c1" }, resolveValue: { key: "sk-live" } })

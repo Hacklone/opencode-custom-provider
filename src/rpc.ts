@@ -37,7 +37,6 @@ export const CustomProviderRpc = Rpc.define({
         id: z.string(),
         name: z.string().optional(),
         baseURL: z.string().optional(),
-        key: z.string().nullable().optional(),
       }),
       output: providerStatus,
     },
@@ -48,14 +47,6 @@ export const CustomProviderRpc = Rpc.define({
     refresh: {
       input: z.object({ id: z.string() }),
       output: z.object({ id: z.string(), models: z.array(z.string()) }),
-    },
-    setDefault: {
-      input: z.object({ providerID: z.string(), modelID: z.string() }),
-      output: z.object({}),
-    },
-    switchSession: {
-      input: z.object({ sessionID: z.string(), providerID: z.string(), modelID: z.string() }),
-      output: z.object({}),
     },
   },
   events: {},

@@ -148,22 +148,6 @@ describe("CustomProviderService.edit", () => {
     expect(endpoint.calls).toHaveLength(0)
   })
 
-  it("rotates the key and refetches with the new key", async () => {
-    const { service, endpoint, credentials } = await seed()
-    endpoint.result = ["m5"]
-    const status = await service.edit("acme", { key: "sk-2" })
-    expect(endpoint.calls).toEqual([{ baseURL: "https://a.dev/v1", apiKey: "sk-2" }])
-    expect(await credentials.resolve("acme")).toBe("sk-2")
-    expect(status.modelCount).toBe(1)
-  })
-
-  it("rejects a blank key patch", async () => {
-    const { service, endpoint, credentials } = await seed()
-    await expect(service.edit("acme", { key: " " })).rejects.toThrow(/key must not be blank/)
-    expect(endpoint.calls).toHaveLength(0)
-    expect(await credentials.resolve("acme")).toBe("sk-1")
-  })
-
   it("keeps the stored inventory when the refetch fails", async () => {
     const { service, endpoint, store, catalog } = await seed()
     endpoint.result = new Error("down")
@@ -261,41 +245,36 @@ describe("CustomProviderService.list", () => {
   })
 })
 
-describe("CustomProviderService selection", () => {
-  it("sets the default for a known model", async () => {
+describe("CustomProviderService auto-default", () => {
+  it("points the catalog default at the first model after add", async () => {
     const { service, session } = makeService()
-    await service.add({ name: "Acme", baseURL: "https://a.dev/v1" })
-    await service.setDefault("acme", "m1")
+    await service.add({ name: "Acme", baseURL: "https://a.dev/v1", key: "sk-1" })
     expect(session.defaults).toEqual([{ providerID: "acme", modelID: "m1" }])
   })
 
-  it("rejects an unknown model without touching the session", async () => {
+  it("also auto-defaults keyless providers", async () => {
     const { service, session } = makeService()
-    await service.add({ name: "Acme", baseURL: "https://a.dev/v1" })
-    await expect(service.setDefault("acme", "ghost")).rejects.toThrow(/is not in the inventory/)
+    await service.add({ name: "Local", baseURL: "http://127.0.0.1:8000/v1" })
+    expect(session.defaults).toEqual([{ providerID: "local", modelID: "m1" }])
+  })
+
+  it("does not set a default when the inventory fetch fails", async () => {
+    const { service, session } = makeService(new Error("unreachable"))
+    await expect(service.add({ name: "Acme", baseURL: "https://a.dev/v1" })).rejects.toThrow("unreachable")
     expect(session.defaults).toHaveLength(0)
-  })
-
-  it("switches the session model for a known model", async () => {
-    const { service, session } = makeService()
-    await service.add({ name: "Acme", baseURL: "https://a.dev/v1" })
-    await service.switchSession("s1", "acme", "m2")
-    expect(session.switches).toEqual([{ sessionID: "s1", providerID: "acme", modelID: "m2" }])
-  })
-
-  it("rejects an unknown provider for selection", async () => {
-    const { service } = makeService()
-    await expect(service.switchSession("s1", "ghost", "m1")).rejects.toThrow(/no custom provider with id/)
   })
 })
 
 describe("CustomProviderService.restoreAll", () => {
-  it("registers stored providers offline with zero endpoint calls", async () => {
-    const { service, endpoint, catalog, store } = makeService()
+  it("registers stored providers offline with zero endpoint calls and re-exposes their integrations", async () => {
+    const { service, endpoint, catalog, credentials, store } = makeService()
     await store.save({ def: { id: "a", name: "A", baseURL: "https://a.dev/v1" }, models: ["m1"] })
     await store.save({ def: { id: "b", name: "B", baseURL: "https://b.dev/v1" }, models: [] })
     await service.restoreAll()
     expect(endpoint.calls).toHaveLength(0)
     expect(catalog.registered.map((r) => r.def.id).sort()).toEqual(["a", "b"])
+    // /connect visibility survives a restart (regression: integration
+    // registration used to happen only inside credentials.save).
+    expect(credentials.ensured.sort()).toEqual(["a", "b"])
   })
 })

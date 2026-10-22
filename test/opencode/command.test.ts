@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
-  formatModels,
   formatStatus,
   parseConnectArgs,
-  parseModelsArgs,
 } from "../../src/opencode/command.ts"
 
 describe("parseConnectArgs", () => {
@@ -32,14 +30,15 @@ describe("parseConnectArgs", () => {
   })
 
   it("parses edit patches", () => {
-    expect(parseConnectArgs("edit id=acme name=New base=https://b.dev/v1 key=sk-2")).toEqual({
+    // Key rotation is deliberately NOT part of edit — it lives in /connect.
+    expect(parseConnectArgs("edit id=acme name=New base=https://b.dev/v1")).toEqual({
       kind: "edit",
       id: "acme",
       name: "New",
       baseURL: "https://b.dev/v1",
-      key: "sk-2",
     })
     expect(parseConnectArgs("edit id=acme")).toEqual({ kind: "edit", id: "acme" })
+    expect(() => parseConnectArgs("edit id=acme key=sk-2")).toThrow(/unknown argument "key"/)
   })
 
   it("parses remove", () => {
@@ -86,27 +85,6 @@ describe("parseConnectArgs", () => {
   })
 })
 
-describe("parseModelsArgs", () => {
-  it("parses the list action", () => {
-    expect(parseModelsArgs("")).toEqual({ kind: "list" })
-  })
-
-  it("parses show and setDefault", () => {
-    expect(parseModelsArgs("acme")).toEqual({ kind: "show", id: "acme" })
-    expect(parseModelsArgs("acme default m1")).toEqual({ kind: "setDefault", id: "acme", modelID: "m1" })
-  })
-
-  it("rejects unknown actions and bare keywords", () => {
-    expect(() => parseModelsArgs("default m1")).toThrow(/unknown action "m1"/)
-    expect(() => parseModelsArgs("acme default")).toThrow(/default requires a model id/)
-    expect(() => parseModelsArgs("acme default m1 extra")).toThrow(/default requires a model id/)
-  })
-
-  it("rejects unknown actions", () => {
-    expect(() => parseModelsArgs("acme bogus m1")).toThrow(/unknown action "bogus"/)
-  })
-})
-
 describe("formatStatus", () => {
   it("shows the add hint when empty", () => {
     expect(formatStatus([])).toMatch(/none — add one with/)
@@ -126,11 +104,5 @@ describe("formatStatus", () => {
       { id: "acme", name: "Acme", baseURL: "https://a.dev/v1", modelCount: 3, hasCredential: true, lastError: "HTTP 401 — check the API key" },
     ])
     expect(text).toContain("LAST REFRESH FAILED: HTTP 401 — check the API key")
-  })
-})
-
-describe("formatModels", () => {
-  it("lists model refs", () => {
-    expect(formatModels("acme", ["m1", "m2"])).toBe("Models for acme:\n- acme/m1\n- acme/m2")
   })
 })

@@ -8,13 +8,10 @@ export interface SelectionContext {
     }) => void): Promise<{ dispose(): void }>
     reload(): Promise<void>
   }
-  session: {
-    switchModel(input: { sessionID: string; model: { providerID: string; id: string } }): Promise<void>
-  }
 }
 
 /**
- * Model selection via a single captured model transform: the callback replays
+ * Catalog default via a single captured model transform: the callback replays
  * the current default on every registry rebuild; setDefault mutates the
  * holder and reloads. Calling `ctx.model.transform` per change would instead
  * accumulate transforms forever.
@@ -34,9 +31,5 @@ export class OpencodeSessionControl implements SessionControl {
   async setDefault(providerID: string, modelID: string): Promise<void> {
     this.current = { providerID, modelID }
     await this.ctx.model.reload()
-  }
-
-  async switchSession(sessionID: string, providerID: string, modelID: string): Promise<void> {
-    await this.ctx.session.switchModel({ sessionID, model: { providerID, id: modelID } })
   }
 }

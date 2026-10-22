@@ -50,9 +50,9 @@ from `@coool/opencode-decision-mode`.
   by itself — unregistering is `Map.delete` + `reload()`, not `editor.remove`.
 - **Command-name shadowing (CONFIRMED live 2026-10-21)**: a server command
   with the SAME name as a TUI client slash entry shows up twice in the
-  palette. The fallback is applied: server commands are named
-  `web-custom-connect` / `web-custom-models` (web UI, arg grammar),
-  while the TUI keeps the `/custom-connect` / `/custom-models` dialogs.
+  palette. The fallback is applied: the server command is named
+  `web-custom-connect` (web UI, arg grammar), while the TUI keeps the
+  `/custom-connect` dialog.
 - **RPC handlers are location-scoped**: `ctx.rpc.register` handlers resolve
   against the CALLER's location. A location-less request resolves the plugin
   for the default location (home) and fails with
@@ -73,16 +73,20 @@ from `@coool/opencode-decision-mode`.
 ## Model registration
 
 - Provider `settings.apiKey` is embedded at registration time (resolved from
-  the credential store) in addition to `Provider.Info.integrationID`:
-  `settings.apiKey` is the documented config mechanism and guarantees auth
-  works even if integration-linked credential resolution is not implemented
-  for arbitrary integrations; `integrationID` additionally links the provider
-  to `/connect`-managed accounts.
+  the credential store) in addition to `Provider.Info.integrationID` as a
+  fallback for the no-active-credential case. **Verified live (OpenCode
+  2.1.2)**: OpenCode resolves the integration credential at REQUEST time and
+  it WINS over the embedded `settings.apiKey` — a key rotated in `/connect`
+  takes effect immediately, no re-registration needed. Key management is
+  therefore delegated to the built-in `/connect` dialog (the plugin still
+  saves the initial key so `/connect` has an account to activate).
+- Adding a provider automatically sets its first discovered model as the
+  catalog default (`ctx.model.transform` default holder + `ctx.model.reload()`).
 - Discovered models use OpenCode's uncatalogued-model fallbacks: tools +
   text/image input, text output, 200k context, 32k output. No per-model
   overrides in v1.
 - **No background refresh**: inventory is fetched only on connect, edit
-  (baseURL/key change), or explicit refresh. Setup restores providers from
+  (base-URL change), or explicit refresh. Setup restores providers from
   storage with zero network calls (offline-tolerant); a failed refresh keeps
   the stored inventory and reports the error.
 
@@ -104,12 +108,18 @@ from `@coool/opencode-decision-mode`.
   directory (npm-installed plugins don't have this problem).
 - The full server-side flow was verified end-to-end against a mock
   OpenAI-compatible endpoint: connect (validate-before-save, credential
-  created in the safe store as `type=key active=true`), edit with key
-  rotation, refresh, setDefault (`/api/model/default` follows), session
-  switch (`model-switched` message), a REAL chat completion round-trip through
-  the registered provider (Bearer auth accepted), remove (provider and
-  integration both disappear), and offline restore after a cold restart with
-  the endpoint unreachable (inventory intact, zero network at setup).
+  created in the safe store as `type=key active=true`), base-URL edit
+  re-fetch, refresh, auto-default on add (`/api/model/default` follows), a
+  REAL chat completion round-trip through the registered provider (Bearer
+  auth accepted), remove (provider and integration both disappear), and
+  offline restore after a cold restart with the endpoint unreachable
+  (inventory intact, zero network at setup).
+- Integration registration (the `/connect` visibility) only happens inside
+  `credentials.save` — a provider restored at setup would NOT appear in
+  `/connect` until its `ensureRegistered` runs (fixed in 0.1.5: restoreAll
+  registers every restored provider). Each key save accumulates a new
+  credential entry in the safe store (native account behavior; latest is
+  active).
 - `/api/model` and `/api/provider` snapshots may precede initial plugin
   settlement — an empty read right after boot does not mean restore failed;
   query the RPC status or wait for settlement.
@@ -130,7 +140,7 @@ Live smoke test: copy `src/` into a sandbox project's
 `.opencode/plugins/custom-provider/` keeping the root `index.ts` shim (local
 discovery loads `<dir>/index.ts` directly; the package.json `exports` map is
 only honored for npm installs), then run `opencode` and exercise
-`/custom-connect` / `/custom-models`.
+`/custom-connect` (TUI) or `/web-custom-connect` (web UI).
 
 ## Publishing
 

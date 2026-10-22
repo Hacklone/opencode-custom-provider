@@ -7,10 +7,8 @@ import { OpencodeCredentials } from "./credentials.ts"
 import { OpencodeCatalog } from "./catalog.ts"
 import { OpencodeSessionControl } from "./session-control.ts"
 import {
-  formatModels,
   formatStatus,
   parseConnectArgs,
-  parseModelsArgs,
 } from "./command.ts"
 import { errorMessage } from "../domain/provider-types.ts"
 import { CustomProviderRpc } from "../rpc.ts"
@@ -45,15 +43,16 @@ export default Plugin.define({
     }
 
     const commandRegistration = await ctx.command.transform((editor) => {
-      // Server command names differ from the TUI slash entries on purpose:
+      // Server command name differs from the TUI slash entry on purpose:
       // the user-confirmed shadowing gotcha (palette shows both, and the
       // same-named entry loses to the server command) makes distinct names
-      // the documented fallback. The TUI keeps /custom-connect and
-      // /custom-models dialogs; these arg-grammar commands serve the web UI.
+      // the documented fallback. The TUI keeps the /custom-connect dialog;
+      // this arg-grammar command serves the web UI. Model selection needs no
+      // command: custom models appear in OpenCode's built-in /models picker.
       editor.add({
         name: "web-custom-connect",
         description:
-          "Custom providers (web UI): /web-custom-connect | add id=<id> name=<Name> base=<url> [key=<key>] | edit id=<id> [name=<Name>] [base=<url>] [key=<key>] | remove id=<id>",
+          "Custom providers (web UI): /web-custom-connect | add id=<id> name=<Name> base=<url> [key=<key>] | edit id=<id> [name=<Name>] [base=<url>] | remove id=<id>",
         execute: async ({ sessionID, prompt }) => {
           const text = prompt.text.replace(/^\/web-custom-connect\b\s*/i, "")
           try {
@@ -77,7 +76,6 @@ export default Plugin.define({
                 const status = await service.edit(action.id, {
                   name: action.name,
                   baseURL: action.baseURL,
-                  key: action.key,
                 })
                 reply = formatStatus([status])
                 break
@@ -93,34 +91,6 @@ export default Plugin.define({
           }
         },
       })
-      editor.add({
-        name: "web-custom-models",
-        description:
-          "Custom provider models (web UI): /web-custom-models | /web-custom-models <id> | /web-custom-models <id> default <modelID>",
-        execute: async ({ sessionID, prompt }) => {
-          const text = prompt.text.replace(/^\/web-custom-models\b\s*/i, "")
-          try {
-            const action = parseModelsArgs(text)
-            let reply: string
-            switch (action.kind) {
-              case "list":
-                reply = formatStatus(await service.list())
-                break
-              case "show":
-                reply = formatModels(action.id, await service.refresh(action.id))
-                break
-              case "setDefault":
-                await service.setDefault(action.id, action.modelID)
-                await service.switchSession(sessionID, action.id, action.modelID)
-                reply = `Default model set to ${action.id}/${action.modelID} and applied to this session`
-                break
-            }
-            await say(sessionID, reply)
-          } catch (error) {
-            await say(sessionID, `Custom model error: ${errorMessage(error)}`)
-          }
-        },
-      })
     })
 
     const rpcRegistration = await ctx.rpc.register(CustomProviderRpc, {
@@ -129,21 +99,12 @@ export default Plugin.define({
       edit: async (input) => await service.edit(input.id, {
         name: input.name,
         baseURL: input.baseURL,
-        key: input.key,
       }),
       remove: async (input) => {
         await service.remove(input.id)
         return {}
       },
       refresh: async (input) => ({ id: input.id, models: await service.refresh(input.id) }),
-      setDefault: async (input) => {
-        await service.setDefault(input.providerID, input.modelID)
-        return {}
-      },
-      switchSession: async (input) => {
-        await service.switchSession(input.sessionID, input.providerID, input.modelID)
-        return {}
-      },
     })
 
     return () => {

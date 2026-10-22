@@ -27,11 +27,15 @@ time.
 
 ## Why the dual mechanism
 
-- `settings.apiKey` is the documented configuration mechanism for providers
-  and guarantees authenticated requests even if integration-linked credential
-  resolution turns out not to apply to plugin-registered integrations.
-- `integrationID` keeps the provider linked to `/connect`-managed accounts so
-  key rotation through OpenCode's own UI stays possible.
+- `integrationID` keeps the provider linked to `/connect`-managed accounts.
+  **Verified live (OpenCode 2.1.2, 2026-10-22)**: OpenCode resolves the
+  integration credential at REQUEST time via `Provider.Info.integrationID`
+  and it WINS over `settings.apiKey` — a key rotated in `/connect` takes
+  effect immediately without re-registering.
+- `settings.apiKey` therefore remains only as a fallback for the
+  no-active-credential case (e.g. the credential store unavailable), not as
+  the primary auth path. Key management is delegated to the built-in
+  `/connect` dialog.
 
 ## Consequences
 
@@ -42,6 +46,7 @@ time.
   connection first, plugin storage second.
 - Secrets never appear in logs, status output, or error messages — credential
   status is reported as a boolean only.
-- A refresh (connect, edit with baseURL/key change, explicit refresh)
+- A refresh (connect, edit with a base-URL change, explicit refresh)
   re-registers the provider, re-resolving the current credential so an embedded
-  key never goes stale across those actions.
+  key never goes stale across those actions. Key edits themselves are handled
+  by `/connect` and take effect at request time (no re-registration needed).

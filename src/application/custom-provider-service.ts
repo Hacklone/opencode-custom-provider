@@ -18,7 +18,6 @@ export interface AddProviderInput {
 export interface EditProviderInput {
   name?: string
   baseURL?: string
-  key?: string | null
 }
 
 export interface ProviderStatus {
@@ -51,6 +50,10 @@ export class CustomProviderService {
   async restoreAll(): Promise<void> {
     for (const record of await this.deps.store.list()) {
       await this.deps.catalog.register(record.def, seedsFromIds(record.models))
+      // Re-expose the integration to /connect: registration otherwise only
+      // happens inside credentials.save, so a restart would hide the provider
+      // from /connect until a key edit (verified live 2026-10-22).
+      await this.deps.credentials.ensureRegistered(record.def.id)
     }
   }
 
@@ -68,13 +71,18 @@ export class CustomProviderService {
     await this.deps.credentials.save(id, key)
     await this.deps.store.save({ def, models })
     await this.deps.catalog.register(def, seedsFromIds(models))
+    // Auto-default (user request): a freshly added provider must be usable
+    // immediately — its first model becomes the catalog default for new
+    // sessions. fetchModels refuses an empty inventory, so the first model
+    // always exists here.
+    await this.setDefault(id, models[0]!)
     return this.statusFor(def, models, key !== null, undefined)
   }
 
   async edit(id: string, patch: EditProviderInput): Promise<ProviderStatus> {
     const record = await this.require(id)
-    if (patch.name === undefined && patch.baseURL === undefined && patch.key === undefined) {
-      throw new ProviderInputError("edit needs at least one of name, base, or key")
+    if (patch.name === undefined && patch.baseURL === undefined) {
+      throw new ProviderInputError("edit needs at least one of name or base")
     }
     const def = { ...record.def }
     if (patch.name !== undefined) def.name = requireNonEmpty(patch.name, "name")
@@ -83,12 +91,12 @@ export class CustomProviderService {
     const nextBaseURL = patch.baseURL !== undefined ? normalizeBaseURL(patch.baseURL) : undefined
     const baseURLChanged = nextBaseURL !== undefined && nextBaseURL !== record.def.baseURL
     if (nextBaseURL !== undefined) def.baseURL = nextBaseURL
-    const keyProvided = patch.key !== undefined
-    const key = keyProvided ? requireKey(patch.key) : null
-    // baseURL or key change => immediate refetch with the effective credential.
+    // baseURL change => immediate refetch with the resolved credential (key
+    // rotation is delegated to /connect, whose active credential resolve()
+    // sees instantly).
     let models = record.models
-    if (baseURLChanged || keyProvided) {
-      const effectiveKey = keyProvided ? key : await this.deps.credentials.resolve(id)
+    if (baseURLChanged) {
+      const effectiveKey = await this.deps.credentials.resolve(id)
       try {
         models = await this.deps.endpoint.fetchModels(def.baseURL, effectiveKey)
       } catch (error) {
@@ -98,7 +106,6 @@ export class CustomProviderService {
         throw error
       }
     }
-    if (keyProvided) await this.deps.credentials.save(id, key)
     await this.deps.store.save({ def, models })
     await this.deps.catalog.register(def, seedsFromIds(models))
     const hasCredential = (await this.deps.credentials.resolve(id)) !== null
@@ -141,14 +148,9 @@ export class CustomProviderService {
     return statuses
   }
 
-  async setDefault(providerID: string, modelID: string): Promise<void> {
-    await this.requireModel(providerID, modelID)
+  /** Internal: points the catalog default at a validated model (auto-default on add). */
+  private async setDefault(providerID: string, modelID: string): Promise<void> {
     await this.deps.session.setDefault(providerID, modelID)
-  }
-
-  async switchSession(sessionID: string, providerID: string, modelID: string): Promise<void> {
-    await this.requireModel(providerID, modelID)
-    await this.deps.session.switchSession(sessionID, providerID, modelID)
   }
 
   private async require(id: string): Promise<ProviderRecord> {
@@ -157,13 +159,6 @@ export class CustomProviderService {
       throw new ProviderInputError(`no custom provider with id "${id}" — run /custom-connect to list providers`)
     }
     return record
-  }
-
-  private async requireModel(providerID: string, modelID: string): Promise<void> {
-    const record = await this.require(providerID)
-    if (!record.models.includes(modelID)) {
-      throw new ProviderInputError(`model "${modelID}" is not in the inventory of "${providerID}" — run /custom-models ${providerID} to refresh`)
-    }
   }
 
   private statusFor(def: ProviderRecord["def"], models: string[], hasCredential: boolean, lastError: string | undefined): ProviderStatus {

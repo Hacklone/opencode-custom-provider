@@ -2,16 +2,15 @@ import { ProviderInputError } from "../domain/provider-types.ts"
 
 /**
  * Server command grammar (pure, no platform imports). TUI dialogs build the
- * same inputs directly; the grammar is for the `custom-connect` /
- * `custom-models` server commands driven from the web UI.
+ * same inputs directly; the grammar is for the `web-custom-connect` server
+ * command driven from the web UI. Model selection is served by OpenCode's
+ * built-in /models picker (custom models appear there), so there is no
+ * models grammar.
  *
- * /custom-connect                          → status list
+ * /custom-connect          → status list
  * /custom-connect add id=<id> name=<Name> base=<url> [key=<key>]
- * /custom-connect edit id=<id> [name=<Name>] [base=<url>] [key=<key>]
+ * /custom-connect edit id=<id> [name=<Name>] [base=<url>]
  * /custom-connect remove id=<id>
- * /custom-models                           → list providers
- * /custom-models <id>                      → refresh + list models
- * /custom-models <id> default <modelID>    → catalog default + session switch
  *
  * Values containing spaces must be double-quoted: name="My Provider".
  */
@@ -19,13 +18,8 @@ import { ProviderInputError } from "../domain/provider-types.ts"
 export type ConnectAction =
   | { kind: "status" }
   | { kind: "add"; id?: string; name: string; baseURL: string; key?: string }
-  | { kind: "edit"; id: string; name?: string; baseURL?: string; key?: string | null }
+  | { kind: "edit"; id: string; name?: string; baseURL?: string }
   | { kind: "remove"; id: string }
-
-export type ModelsAction =
-  | { kind: "list" }
-  | { kind: "show"; id: string }
-  | { kind: "setDefault"; id: string; modelID: string }
 
 export function parseConnectArgs(text: string): ConnectAction {
   const tokens = tokenize(text)
@@ -49,13 +43,12 @@ export function parseConnectArgs(text: string): ConnectAction {
     }
   }
   if (action === "edit") {
-    const args = parseKeyValues(rest, ["id", "name", "base", "key"])
+    const args = parseKeyValues(rest, ["id", "name", "base"])
     const id = args["id"]
     if (id === undefined) throw usageError("edit requires id=<id>")
-    const patch: { kind: "edit"; id: string; name?: string; baseURL?: string; key?: string | null } = { kind: "edit", id }
+    const patch: { kind: "edit"; id: string; name?: string; baseURL?: string } = { kind: "edit", id }
     if (args["name"] !== undefined) patch.name = args["name"]
     if (args["base"] !== undefined) patch.baseURL = args["base"]
-    if (args["key"] !== undefined) patch.key = args["key"]
     return patch
   }
   if (action === "remove") {
@@ -63,22 +56,6 @@ export function parseConnectArgs(text: string): ConnectAction {
     const id = args["id"]
     if (id === undefined) throw usageError("remove requires id=<id>")
     return { kind: "remove", id }
-  }
-  throw usageError(`unknown action "${action}"`)
-}
-
-export function parseModelsArgs(text: string): ModelsAction {
-  const tokens = tokenize(text)
-  if (tokens.length === 0) return { kind: "list" }
-  const [first, action, modelID, ...extra] = tokens
-  // Invariant: tokens.length > 0 above, so the first token exists.
-  const id = first!
-  if (action === undefined) return { kind: "show", id }
-  if (action === "default") {
-    if (modelID === undefined || extra.length > 0) {
-      throw usageError(`default requires a model id: /custom-models ${id} default <modelID>`)
-    }
-    return { kind: "setDefault", id, modelID }
   }
   throw usageError(`unknown action "${action}"`)
 }
@@ -122,7 +99,7 @@ function parseKeyValues(tokens: readonly string[], allowed: readonly string[]): 
 
 function usageError(detail: string): ProviderInputError {
   return new ProviderInputError(
-    `${detail} — usage: /custom-connect [add id=<id> name=<Name> base=<url> [key=<key>]] | [edit id=<id> [name=<Name>] [base=<url>] [key=<key>]] | [remove id=<id>]`,
+    `${detail} — usage: /custom-connect [add id=<id> name=<Name> base=<url> [key=<key>]] | [edit id=<id> [name=<Name>] [base=<url>]] | [remove id=<id>]`,
   )
 }
 
@@ -143,9 +120,4 @@ export function formatStatus(providers: {
     return `- ${p.id} (${p.name}) → ${p.baseURL} · ${p.modelCount} models · ${credential}${health}`
   })
   return `Custom providers:\n${lines.join("\n")}`
-}
-
-export function formatModels(id: string, models: readonly string[]): string {
-  const lines = models.map((m) => `- ${id}/${m}`)
-  return `Models for ${id}:\n${lines.join("\n")}`
 }

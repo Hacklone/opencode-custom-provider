@@ -54,15 +54,24 @@ export class OpencodeCredentials implements CredentialStore {
       // Best effort: register the integration so /connect lists it, then save
       // the key into the safe store. If either fails, the storage fallback
       // already holds the secret.
+      await this.ensureRegistered(id)
+      await this.ctx.integration.connect.key({ integrationID: id, key })
+    } catch {
+      // Integration probing is best effort; the storage fallback is deterministic.
+    }
+  }
+
+  async ensureRegistered(id: string): Promise<void> {
+    if (this.ctx === null) return
+    try {
       await this.ctx.integration.transform((editor) => {
         editor.update(id, (integration) => {
           integration.name = integrationDisplayName(id)
         })
         editor.method.update({ integrationID: id, method: { type: "key", label: "API key" } })
       })
-      await this.ctx.integration.connect.key({ integrationID: id, key })
     } catch {
-      // Integration probing is best effort; the storage fallback is deterministic.
+      // Best effort; resolution still works from the storage fallback.
     }
   }
 

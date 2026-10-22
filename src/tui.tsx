@@ -1,7 +1,13 @@
 /** @jsxImportSource @opentui/solid */
 /**
  * TUI plugin: dialog flows over the same RPC methods the web UI reaches via
- * server commands. One service on the server means the clients cannot drift.
+ * the web-custom-connect server command. One service on the server means the
+ * clients cannot drift.
+ *
+ * Model selection needs no dialog here: custom provider models appear in
+ * OpenCode's built-in /models picker (verified live 2026-10-22), and key
+ * rotation is delegated to the built-in /connect (the integration credential
+ * is resolved at request time and wins over settings.apiKey).
  *
  * RPC calls MUST carry the TUI location: rpc handlers are resolved per
  * location, and a project-local plugin's handlers are invisible to a
@@ -9,9 +15,8 @@
  * the exact bug that made /custom-connect report an error).
  *
  * NOTE (shadowing gotcha, CONFIRMED live): same-named server commands and TUI
- * slash entries both appear in the palette. The server commands are therefore
- * named `web-custom-connect` / `web-custom-models`; the TUI keeps the short
- * `/custom-connect` and `/custom-models` dialogs.
+ * slash entries both appear in the palette. The server command is therefore
+ * named `web-custom-connect`; the TUI keeps the `/custom-connect` dialog.
  */
 import { Plugin } from "@opencode/plugin/tui"
 import { errorMessage } from "./domain/provider-types.ts"
@@ -111,9 +116,11 @@ export default Plugin.define({
     }
 
     const editFlow = async (provider: ProviderStatus) => {
+      // Key rotation is NOT part of the edit flow: rotate via the built-in
+      // /connect (the active credential wins at request time and our
+      // resolve() sees it instantly). Empty input keeps the current value.
       let name = provider.name
       let baseURL = provider.baseURL
-      let key = ""
       for (;;) {
         const nextName = await context.ui.dialog.prompt({ title: "Provider name", placeholder: name, value: name === provider.name ? undefined : name })
         if (nextName === undefined) return
@@ -121,20 +128,12 @@ export default Plugin.define({
         const nextBaseURL = await context.ui.dialog.prompt({ title: "Base URL", placeholder: baseURL, value: baseURL === provider.baseURL ? undefined : baseURL })
         if (nextBaseURL === undefined) return
         baseURL = nextBaseURL.trim()
-        const nextKey = await context.ui.dialog.prompt({
-          title: "API key",
-          placeholder: provider.hasCredential ? "Saved — type a new key to replace, empty keeps it" : "Empty keeps this endpoint keyless",
-          value: key === "" ? undefined : key,
-        })
-        if (nextKey === undefined) return
-        key = nextKey.trim()
         try {
           const status = await rpc().edit(
             {
               id: provider.id,
               name: name !== provider.name && name.length > 0 ? name : undefined,
               baseURL: baseURL !== provider.baseURL && baseURL.length > 0 ? baseURL : undefined,
-              key: key.length > 0 ? key : undefined,
             },
             rpcOptions(),
           )
@@ -186,93 +185,23 @@ export default Plugin.define({
           if (picked === "add") await addFlow(searchQuery)
           return
         }
-        const action = await context.ui.dialog.select<"edit" | "remove">({
+        const action = await context.ui.dialog.select<"edit" | "refresh" | "remove">({
           title: `${picked.name} (${picked.id})`,
           options: [
-            { value: "edit", title: "Edit", description: "Rename, change base URL, or rotate the key" },
+            { value: "edit", title: "Edit", description: "Rename or change the base URL (rotate keys via /connect)" },
+            { value: "refresh", title: "Refresh", description: "Re-fetch the model inventory from the endpoint" },
             { value: "remove", title: "Remove", description: "Unregister and drop its credential" },
           ],
         })
         if (action === "edit") await editFlow(picked)
-        else if (action === "remove") await removeFlow(picked)
-      } catch (error) {
-        toastError(error)
-      }
-    }
-
-    const modelsFlow = async () => {
-      try {
-        const providers = await fetchProviders()
-        if (providers.length === 0) {
+        else if (action === "refresh") {
+          const models = await rpc().refresh({ id: picked.id }, rpcOptions()).then((r) => r.models)
           context.ui.toast.show({
-            title: "Custom providers",
-            message: "No custom providers yet — run /custom-connect to add one",
-            variant: "info",
-          })
-          return
-        }
-        const provider = await context.ui.dialog.select<ProviderStatus | "add">({
-          title: "Models — pick a provider",
-          search: searchKeepingAdd<ProviderStatus | "add">("add"),
-          options: [
-            ...providers.map((p) => ({
-              value: p,
-              title: `${p.name} (${p.id})`,
-              description: providerDescription(p),
-            })),
-            { value: "add", title: "Add new provider", description: "Register a new OpenAI-compatible endpoint" },
-          ],
-        })
-        if (provider === undefined) return
-        if (provider === "add") {
-          await addFlow(searchQuery)
-          return
-        }
-        const models = (await rpc().refresh({ id: provider.id }, rpcOptions())).models
-        if (models.length === 0) {
-          context.ui.toast.show({
-            title: provider.name,
-            message: "The endpoint returned no models",
-            variant: "warning",
-          })
-          return
-        }
-        const modelID = await context.ui.dialog.select<string>({
-          title: `${provider.name} models`,
-          options: models.map((id) => ({ value: id, title: id })),
-        })
-        if (modelID === undefined) return
-        const what = await context.ui.dialog.select<"session" | "default">({
-          title: `${provider.id}/${modelID}`,
-          options: [
-            { value: "session", title: "Use in this session", description: "Switches the current session's model" },
-            { value: "default", title: "Make default", description: "New sessions start on this model" },
-          ],
-        })
-        if (what === "session") {
-          const route = context.ui.router.current()
-          if (route.type !== "session") {
-            context.ui.toast.show({
-              title: "No session open",
-              message: "Open a session first, then pick a model",
-              variant: "warning",
-            })
-            return
-          }
-          await rpc().switchSession({ sessionID: route.sessionID, providerID: provider.id, modelID }, rpcOptions())
-          context.ui.toast.show({
-            title: "Model switched",
-            message: `${provider.id}/${modelID}`,
+            title: "Inventory refreshed",
+            message: `${picked.name} · ${models.length} models`,
             variant: "success",
           })
-        } else if (what === "default") {
-          await rpc().setDefault({ providerID: provider.id, modelID }, rpcOptions())
-          context.ui.toast.show({
-            title: "Default model set",
-            message: `${provider.id}/${modelID}`,
-            variant: "success",
-          })
-        }
+        } else if (action === "remove") await removeFlow(picked)
       } catch (error) {
         toastError(error)
       }
@@ -290,16 +219,6 @@ export default Plugin.define({
           slash: { name: "custom-connect" },
           suggested: true,
           run: () => void connectFlow(),
-        },
-        {
-          id: "custom-provider.models",
-          title: "Custom provider models",
-          description: "Refresh a custom provider's inventory and pick a model",
-          group: "Custom providers",
-          palette: true,
-          slash: { name: "custom-models" },
-          suggested: true,
-          run: () => void modelsFlow(),
         },
       ],
     }))

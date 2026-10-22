@@ -39,14 +39,11 @@ describe("custom-provider use cases", () => {
       providers: [{ id: "acme", name: "Acme", baseURL: "https://a.dev/v1", modelCount: 3, hasCredential: true }],
     })
 
-    // Name-only edit does not refetch; key rotation refetches with the new key.
+    // Name-only edit does not refetch (key rotation lives in /connect).
     vi.mocked(globalThis.fetch).mockClear()
     const renamed = (await rpc("edit", { id: "acme", name: "Acme 2" })) as { modelCount: number }
     expect(renamed.modelCount).toBe(3)
     expect(vi.mocked(globalThis.fetch).mock.calls).toHaveLength(0)
-    const edited = (await rpc("edit", { id: "acme", key: "sk-9" })) as { modelCount: number }
-    expect(edited.modelCount).toBe(3)
-    expect(vi.mocked(globalThis.fetch).mock.calls[0]?.[1]?.headers).toMatchObject({ Authorization: "Bearer sk-9" })
     expect(ctx.providers.get("acme")?.info["name"]).toBe("Acme 2")
 
     // Refresh refetches the inventory on demand.
@@ -56,11 +53,9 @@ describe("custom-provider use cases", () => {
     expect(await rpc("refresh", { id: "acme" })).toEqual({ id: "acme", models: ["m9"] })
     expect(ctx.providers.get("acme")?.models.map((m) => m["id"])).toEqual(["m9"])
 
-    // Default + session switch.
-    await rpc("setDefault", { providerID: "acme", modelID: "m9" })
-    expect(ctx.modelDefaults.at(-1)).toEqual({ providerID: "acme", modelID: "m9" })
-    await rpc("switchSession", { sessionID: "s1", providerID: "acme", modelID: "m9" })
-    expect(ctx.switches.at(-1)?.model).toEqual({ providerID: "acme", id: "m9" })
+    // Auto-default: adding the provider pointed the catalog default at its
+    // first model.
+    expect(ctx.modelDefaults).toEqual([{ providerID: "acme", modelID: "m1" }])
 
     // Remove tears the whole registration down.
     await rpc("remove", { id: "acme" })
@@ -74,13 +69,9 @@ describe("custom-provider use cases", () => {
     await setup(ctx)
 
     await ctx.run("web-custom-connect", "add id=acme name=Acme base=https://a.dev/v1 key=sk-1")
-    await ctx.run("web-custom-models", "acme")
-    expect(lastSynthetic(ctx)).toContain("Models for acme:")
-    expect(lastSynthetic(ctx)).toContain("- acme/m1")
-
-    await ctx.run("web-custom-models", "acme default m1")
+    expect(lastSynthetic(ctx)).toContain("credential saved")
+    // Auto-default: the first model of the new provider is the catalog default.
     expect(ctx.modelDefaults.at(-1)).toEqual({ providerID: "acme", modelID: "m1" })
-    expect(ctx.switches.at(-1)).toMatchObject({ sessionID: "s1", model: { providerID: "acme", id: "m1" } })
 
     await ctx.run("web-custom-connect", "remove id=acme")
     expect(lastSynthetic(ctx)).toContain('Removed custom provider "acme"')
@@ -121,7 +112,6 @@ describe("custom-provider use cases", () => {
     await rpcCall(ctx.rpc(), "connect", { name: "Acme", baseURL: "https://a.dev/v1" })
     await expect(rpcCall(ctx.rpc(), "connect", { name: "Acme", baseURL: "https://a.dev/v1" })).rejects.toThrow(/acme/)
     await expect(rpcCall(ctx.rpc(), "refresh", { id: "ghost" })).rejects.toThrow(/ghost/)
-    await expect(rpcCall(ctx.rpc(), "setDefault", { providerID: "ghost", modelID: "m" })).rejects.toThrow(/ghost/)
     await expect(rpcCall(ctx.rpc(), "remove", { id: "ghost" })).rejects.toThrow(/ghost/)
   })
 
@@ -168,7 +158,6 @@ describe("custom-provider use cases", () => {
     await ctx.run("web-custom-connect", "add name=Acme base=not-a-url")
     expect(ctx.synthetics.at(-1)?.resume).toBe(false)
     expect(lastSynthetic(ctx)).toContain("not a valid http(s) URL")
-    await ctx.run("web-custom-models", "ghost")
-    expect(lastSynthetic(ctx)).toContain("ghost")
+    expect(lastSynthetic(ctx)).toContain("Custom provider error:")
   })
 })

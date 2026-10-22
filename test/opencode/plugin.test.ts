@@ -11,7 +11,8 @@ describe("custom-provider plugin", () => {
     expect(PLUGIN_ID).toBe("custom-provider")
     const ctx = makeCtx()
     const cleanup = await plugin.setup(ctx.ctx as unknown as Parameters<typeof plugin.setup>[0])
-    expect(ctx.commands.map((c) => c.name).sort()).toEqual(["web-custom-connect", "web-custom-models"])
+    // No models command: custom models appear in the built-in /models picker.
+    expect(ctx.commands.map((c) => c.name)).toEqual(["web-custom-connect"])
     expect(typeof cleanup).toBe("function")
   })
 
@@ -53,8 +54,6 @@ describe("custom-provider plugin", () => {
     await ctx.run("web-custom-connect", "add name=Acme base=https://a.dev/v1")
     await ctx.run("web-custom-connect", "edit id=acme name=New")
     expect(ctx.providers.get("acme")?.info["name"]).toBe("New")
-    await ctx.run("web-custom-connect", "edit id=acme key=sk-9")
-    expect((ctx.providers.get("acme")?.info["settings"] as Record<string, unknown>)["apiKey"]).toBe("sk-9")
     await ctx.run("web-custom-connect", "remove id=acme")
     expect(ctx.providers.has("acme")).toBe(false)
     expect(lastSynthetic(ctx)).toContain('Removed custom provider "acme"')
@@ -69,42 +68,12 @@ describe("custom-provider plugin", () => {
     expect(lastSynthetic(ctx)).toContain("Custom provider error:")
   })
 
-  it("lists models through the custom-models command", async () => {
+  it("auto-defaults the first model on add", async () => {
     stubFetch({ data: [{ id: "m1" }, { id: "m2" }] })
     const ctx = makeCtx()
     await plugin.setup(ctx.ctx as unknown as Parameters<typeof plugin.setup>[0])
     await ctx.run("web-custom-connect", "add name=Acme base=https://a.dev/v1")
-    await ctx.run("web-custom-models", "acme")
-    expect(lastSynthetic(ctx)).toBe("Models for acme:\n- acme/m1\n- acme/m2")
-  })
-
-  it("lists providers when custom-models has no args", async () => {
-    stubFetch({ data: [{ id: "m1" }] })
-    const ctx = makeCtx()
-    await plugin.setup(ctx.ctx as unknown as Parameters<typeof plugin.setup>[0])
-    await ctx.run("web-custom-connect", "add name=Acme base=https://a.dev/v1")
-    await ctx.run("web-custom-models", "")
-    expect(lastSynthetic(ctx)).toContain("Custom providers:")
-  })
-
-  it("sets the default and switches the session via custom-models default", async () => {
-    stubFetch({ data: [{ id: "m1" }, { id: "m2" }] })
-    const ctx = makeCtx()
-    await plugin.setup(ctx.ctx as unknown as Parameters<typeof plugin.setup>[0])
-    await ctx.run("web-custom-connect", "add name=Acme base=https://a.dev/v1")
-    await ctx.run("web-custom-models", "acme default m2")
-    expect(ctx.modelDefaults).toEqual([{ providerID: "acme", modelID: "m2" }])
-    expect(ctx.switches).toEqual([{ sessionID: "s1", model: { providerID: "acme", id: "m2" } }])
-    expect(lastSynthetic(ctx)).toContain("Default model set to acme/m2")
-  })
-
-  it("echoes custom-models errors", async () => {
-    stubFetch({ data: [{ id: "m1" }] })
-    const ctx = makeCtx()
-    await plugin.setup(ctx.ctx as unknown as Parameters<typeof plugin.setup>[0])
-    await ctx.run("web-custom-models", "ghost")
-    expect(lastSynthetic(ctx)).toContain("Custom model error:")
-    expect(lastSynthetic(ctx)).toContain("no custom provider with id")
+    expect(ctx.modelDefaults).toEqual([{ providerID: "acme", modelID: "m1" }])
   })
 
   it("exposes RPC handlers over the shared service", async () => {
@@ -113,7 +82,7 @@ describe("custom-provider plugin", () => {
     await plugin.setup(ctx.ctx as unknown as Parameters<typeof plugin.setup>[0])
     const rpc = ctx.rpc()
     expect(Object.keys(rpc).sort()).toEqual([
-      "connect", "edit", "refresh", "remove", "setDefault", "status", "switchSession",
+      "connect", "edit", "refresh", "remove", "status",
     ])
     const call = async <T>(name: string, input: unknown): Promise<T> => {
       const handler = rpc[name]
@@ -130,14 +99,10 @@ describe("custom-provider plugin", () => {
     expect(added).toEqual({ id: "acme", name: "Acme", baseURL: "https://a.dev/v1", modelCount: 2, hasCredential: true })
     const edited = await call<{ name: string }>("edit", { id: "acme", name: "New" })
     expect(edited.name).toBe("New")
-    const rotated = await call<{ hasCredential: boolean }>("edit", { id: "acme", key: "sk-9" })
-    expect(rotated.hasCredential).toBe(true)
     const refreshed = await call<{ models: string[] }>("refresh", { id: "acme" })
     expect(refreshed).toEqual({ id: "acme", models: ["m1", "m2"] })
-    await call("setDefault", { providerID: "acme", modelID: "m1" })
+    // Auto-default on add already pointed the catalog default at the first model.
     expect(ctx.modelDefaults).toEqual([{ providerID: "acme", modelID: "m1" }])
-    await call("switchSession", { sessionID: "s9", providerID: "acme", modelID: "m2" })
-    expect(ctx.switches).toEqual([{ sessionID: "s9", model: { providerID: "acme", id: "m2" } }])
     await call("remove", { id: "acme" })
     expect(ctx.providers.has("acme")).toBe(false)
     expect(await call<{ providers: unknown[] }>("status", {})).toEqual({ providers: [] })

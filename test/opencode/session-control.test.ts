@@ -3,7 +3,6 @@ import { OpencodeSessionControl } from "../../src/opencode/session-control.ts"
 
 function makeCtx() {
   const recorded: { providerID: string; modelID: string }[] = []
-  const switches: { sessionID: string; providerID: string; id: string }[] = []
   const disposables: string[] = []
   const transforms: ((editor: { default: { set(providerID: string, modelID: string): void } }) => void)[] = []
   const ctx = {
@@ -27,13 +26,8 @@ function makeCtx() {
         }
       },
     },
-    session: {
-      switchModel: async (input: { sessionID: string; model: { providerID: string; id: string } }) => {
-        switches.push({ sessionID: input.sessionID, providerID: input.model.providerID, id: input.model.id })
-      },
-    },
   }
-  return { ctx, recorded, switches, transforms, disposables }
+  return { ctx, recorded, transforms, disposables }
 }
 
 describe("OpencodeSessionControl", () => {
@@ -65,12 +59,5 @@ describe("OpencodeSessionControl", () => {
       { providerID: "acme", modelID: "m1" },
       { providerID: "acme", modelID: "m2" },
     ])
-  })
-
-  it("switches the session model", async () => {
-    const { ctx, switches } = makeCtx()
-    const control = new OpencodeSessionControl(ctx)
-    await control.switchSession("s1", "acme", "m1")
-    expect(switches).toEqual([{ sessionID: "s1", providerID: "acme", id: "m1" }])
   })
 })

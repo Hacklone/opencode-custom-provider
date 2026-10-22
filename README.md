@@ -4,13 +4,6 @@ Connect any OpenAI-compatible API to OpenCode — no config files, no env vars.
 API keys go into OpenCode's built-in secret store; the models show up in the
 TUI's `/models` picker like any built-in provider.
 
-```
-$ /web-custom-provider add id=llama name="My LlamaBox" base=http://127.0.0.1:8080/v1
-
-Custom providers:
-- llama (My LlamaBox) → http://127.0.0.1:8080/v1 · 4 models · credential saved
-```
-
 ## Install
 
 ```sh
@@ -19,11 +12,12 @@ opencode plugin add @coool/opencode-custom-provider
 
 ## Usage
 
-Run `/custom-provider` in the TUI. "Add new provider" asks for a name, a base
-URL, and an API key (empty = endpoint needs no key). Picking an existing
-provider offers Edit, Refresh, and Remove.
+In the TUI, run `/custom-provider`, pick "Add new provider", and answer three
+prompts: name, base URL, API key (empty = endpoint needs no key). The plugin
+calls `/v1/models` on your endpoint and registers what it finds — from then
+on, pick your models in the built-in `/models` dialog like any other provider.
 
-In the web UI and other clients, use the same flows as commands:
+In the web UI and other clients, the same flows exist as commands:
 
 ```
 /web-custom-provider                                                   → list
@@ -35,8 +29,8 @@ In the web UI and other clients, use the same flows as commands:
 Values with spaces need double quotes. The `id` can't be changed later. A bad
 URL or wrong key aborts `add` with the endpoint's error — nothing gets saved.
 
-Select your models with the built-in `/models`, rotate keys with `/connect` —
-your custom provider appears in both like a native one.
+Rotate keys with the built-in `/connect` — your custom provider appears there
+like a native one.
 
 ## Good to know
 

@@ -42,8 +42,10 @@ export default Plugin.define({
     }
 
     const providerDescription = (p: ProviderStatus): string => {
-      const health = p.lastError === undefined ? "" : ` · LAST REFRESH FAILED: ${p.lastError}`
-      return `${p.baseURL} · ${p.modelCount} models · ${p.hasCredential ? "credential saved" : "keyless"}${health}`
+      // The failure marker goes FIRST: dialog descriptions truncate, and a
+      // health problem buried at the end is never seen (verified in e2e-tui).
+      const health = p.lastError === undefined ? "" : `LAST REFRESH FAILED: ${p.lastError} · `
+      return `${health}${p.baseURL} · ${p.modelCount} models · ${p.hasCredential ? "credential saved" : "keyless"}`
     }
 
     // Query text the user had typed when a dialog option was picked; the

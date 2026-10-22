@@ -191,6 +191,12 @@ npm run e2e:tui      # TUI-level e2e: drives a real TUI via termwright
   settlement poll is the "plugin loaded" proof, not `/api/plugin`.
 - The rpc route body is `{"input": …}`; a missing input must serialize as
   `{}` (JSON.stringify drops undefined keys; a bare `{}` body is rejected).
+- A foreign location in the rpc query resolves to a 400 **LocationNotFoundError**
+  (not "rpc.unavailable" — that shape only appears for unknown rpcIDs).
+- The mock endpoint (`scripts/mock-llm/server.mjs`) takes `noAuth: true` for
+  keyless-endpoint tests (an authed mock 401s a keyless inventory fetch) and
+  exposes `server.counts.models` — the harness asserts with it who fetched
+  the inventory (rename must not refetch; baseURL edit must).
 
 ## TUI-level e2e (`scripts/e2e-tui.mjs`)
 

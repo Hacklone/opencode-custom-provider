@@ -9,150 +9,13 @@
  *
  * Isolation: the serve gets its own OPENCODE_DB and XDG_DATA_HOME inside the
  * sandbox, so the harness never touches your real safe store or service.
- * The serve's auth is HTTP Basic with username "opencode" — verified from
- * @opencode/client's service wiring (Bearer is rejected).
  */
-import { execFile, spawn } from "node:child_process"
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, openSync, rmSync, symlinkSync } from "node:fs"
-import net from "node:net"
-import os from "node:os"
-import path from "node:path"
 import { promisify } from "node:util"
 import { startMockLlmServer } from "./mock-llm/server.mjs"
-
-const PASSWORD = "e2e-password"
-const KEY = "sk-mock-1234"
-// Verified from @opencode/client: auth is Basic "opencode:<password>".
-const AUTH = "Basic " + Buffer.from(`opencode:${PASSWORD}`).toString("base64")
-const REPO = path.resolve(import.meta.dirname, "..")
-const MODEL_IDS = ["mock-mini", "mock-large", "mock-coder"]
-
-class StepFailure extends Error {}
-
-let checks = 0
-function check(name, ok, detail = "") {
-  checks++
-  if (ok) {
-    console.log(`  ok  ${name}`)
-    return
-  }
-  throw new StepFailure(`${name}${detail ? ` — ${detail}` : ""}`)
-}
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
-/** Retries `probe` until it returns non-nullish, or fails with a clear message. */
-async function until(desc, timeoutMs, probe) {
-  const deadline = Date.now() + timeoutMs
-  let last = undefined
-  while (Date.now() < deadline) {
-    try {
-      last = await probe()
-    } catch {
-      last = undefined
-    }
-    if (last !== undefined && last !== null) return last
-    await sleep(250)
-  }
-  throw new StepFailure(`timed out waiting for ${desc}`)
-}
-
-function freePort() {
-  return new Promise((resolve) => {
-    const server = net.createServer()
-    server.listen(0, "127.0.0.1", () => {
-      const port = server.address().port
-      server.close(() => resolve(port))
-    })
-  })
-}
-
-/** Some list endpoints wrap in {data:[…]}, others return bare arrays. */
-function pickArray(json) {
-  if (Array.isArray(json)) return json
-  if (Array.isArray(json?.data)) return json.data
-  if (Array.isArray(json?.items)) return json.items
-  return []
-}
-
-function buildSandbox() {
-  const sandbox = mkdtempSync(path.join(os.tmpdir(), "custom-provider-e2e-"))
-  const plugin = path.join(sandbox, ".opencode", "plugins", "custom-provider")
-  mkdirSync(plugin, { recursive: true })
-  for (const shim of ["index.ts", "tui.tsx", "rpc.ts", "tsconfig.json"]) {
-    copyFileSync(path.join(REPO, shim), path.join(plugin, shim))
-  }
-  // Local .opencode/plugins discovery loads <dir>/index.ts and resolves deps
-  // from the plugin's own tree — hence the src copy + node_modules symlink.
-  cpSync(path.join(REPO, "src"), path.join(plugin, "src"), { recursive: true })
-  symlinkSync(path.join(REPO, "node_modules"), path.join(plugin, "node_modules"), "dir")
-  return sandbox
-}
-
-function spawnServe(sandbox, port) {
-  const logPath = path.join(sandbox, `serve-${port}.log`)
-  const log = openSync(logPath, "a")
-  const child = spawn("opencode", ["serve", "--port", String(port)], {
-    cwd: sandbox,
-    env: {
-      ...process.env,
-      OPENCODE_PASSWORD: PASSWORD,
-      // Isolate the safe store and data dir from the user's real environment.
-      OPENCODE_DB: path.join(sandbox, "opencode.db"),
-      XDG_DATA_HOME: path.join(sandbox, "xdg"),
-    },
-    stdio: ["ignore", log, log],
-  })
-  return { child, port, logPath }
-}
-
-async function stopServe(serve) {
-  if (serve?.child !== undefined && serve.child.exitCode === null) {
-    serve.child.kill("SIGTERM")
-    await Promise.race([new Promise((resolve) => serve.child.once("exit", resolve)), sleep(3000)])
-    if (serve.child.exitCode === null) serve.child.kill("SIGKILL")
-  }
-  // `opencode serve` can detach its real server into a grandchild that
-  // outlives the spawned child (observed: orphaned, PPID 1, still holding the
-  // listen socket). Kill whatever still holds the port, whatever its tree.
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const pids = await portPids(serve.port)
-    if (pids.length === 0) return
-    for (const pid of pids) {
-      try {
-        process.kill(pid, "SIGKILL")
-      } catch {}
-    }
-    await sleep(200)
-  }
-}
-
-/** PIDs of processes listening on `port`, via lsof (macOS ships it). */
-async function portPids(port) {
-  try {
-    const { stdout } = await promisify(execFile)("lsof", ["-tiTCP:" + port, "-sTCP:LISTEN"])
-    return stdout
-      .split("\n")
-      .map((line) => Number.parseInt(line.trim(), 10))
-      .filter((pid) => Number.isInteger(pid) && pid > 0)
-  } catch {
-    return []
-  }
-}
-
-async function teardown(serve, mocks, sandbox) {
-  try {
-    await stopServe(serve)
-    for (const mock of mocks) {
-      try {
-        mock?.closeAllConnections?.()
-        if (mock !== null) await promisify(mock.close.bind(mock))()
-      } catch {}
-    }
-    // E2E_KEEP=1 keeps the sandbox for post-mortem debugging.
-    if (sandbox !== null && process.env.E2E_KEEP !== "1") rmSync(sandbox, { recursive: true, force: true })
-  } catch {}
-}
+import {
+  AUTH, KEY, MODEL_IDS, StepFailure, buildSandbox, check, checkCount, freePort,
+  makeApi, pickArray, spawnServe, startMock, stopServe, teardown, until, waitSettled,
+} from "./e2e-lib.mjs"
 
 async function main() {
   let mock1 = null
@@ -160,69 +23,26 @@ async function main() {
   let serve = null
   let sandbox = null
   try {
-    mock1 = await startMockLlmServer({ port: 0 })
+    mock1 = await startMock({ port: 0 })
     const v1 = (port) => `http://127.0.0.1:${port}/v1`
     const mockPort1 = mock1.address().port
 
     sandbox = buildSandbox()
     const port = await freePort()
     serve = spawnServe(sandbox, port)
-    const base = `http://127.0.0.1:${port}`
+    const api = makeApi(`http://127.0.0.1:${port}`)
 
-  // Every request carries a hard timeout: a wedged server request must fail
-  // observably instead of hanging the whole harness (no global default exists).
-  const api = async (method, requestPath, body) => {
-    const response = await fetch(`${base}${requestPath}`, {
-      method,
-      signal: AbortSignal.timeout(10_000),
-      headers: {
-        authorization: AUTH,
-        ...(body === undefined ? {} : { "content-type": "application/json" }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    })
-    const text = await response.text()
-    let json = null
-    try {
-      json = text.length > 0 ? JSON.parse(text) : null
-    } catch {
-      // Non-JSON body: callers use `text`.
+    // A missing input must serialize as {} — the server rejects a bare body
+    // ("expected object, received undefined") and JSON drops undefined keys.
+    const rpc = async (method, input = {}) => {
+      const { status, json, text } = await api("POST", `/api/rpc/custom-provider/${method}`, { input })
+      if (status >= 400) throw new StepFailure(`rpc ${method} → HTTP ${status}: ${text.slice(0, 300)}`)
+      return json?.output ?? json
     }
-    return { status: response.status, json, text }
-  }
 
-  // A missing input must serialize as {} — the server rejects a bare body
-  // ("expected object, received undefined") and JSON drops undefined keys.
-  const rpc = async (method, input = {}) => {
-    const { status, json, text } = await api("POST", `/api/rpc/custom-provider/${method}`, { input })
-    if (status >= 400) throw new StepFailure(`rpc ${method} → HTTP ${status}: ${text.slice(0, 300)}`)
-    return json?.output ?? json
-  }
-
-  // --- Boot: serve healthy, plugin loaded, registry settled.
-  await until("serve /api/info responds", 30_000, async () => {
-      const { status } = await api("GET", "/api/info")
-      return status === 200 ? true : undefined
-    })
+    // --- Boot: serve healthy, plugin loaded, registry settled.
+    const settled = await waitSettled(api)
     console.log(`serve on :${port} (sandbox ${sandbox})`)
-
-    // (Locally-discovered plugins are intentionally absent from /api/plugin —
-    // the rpc settlement below is the real "plugin loaded" proof.)
-    let lastSettle = "(no response)"
-    let settled
-    try {
-      settled = await until("plugin settles (rpc status)", 30_000, async () => {
-        const r = await api("POST", "/api/rpc/custom-provider/status", { input: {} })
-        if (r.status >= 400) {
-          lastSettle = r.text
-          return undefined
-        }
-        const s = r.json?.output ?? r.json
-        return Array.isArray(s?.providers) ? s : undefined
-      })
-    } catch (error) {
-      throw new StepFailure(`${error.message} — last rpc response: ${lastSettle}`)
-    }
     check("no providers before any connect", settled.providers.length === 0)
 
     // --- Connect: registration, safe-store credential, /connect visibility.
@@ -275,9 +95,10 @@ async function main() {
     }
 
     // --- Base-URL edit refetches from the NEW endpoint (the old one is dead).
-    await promisify(mock1.close.bind(mock1))()
     mock1.closeAllConnections?.()
-    const mock2 = await startMockLlmServer({ port: 0 })
+    await promisify(mock1.close.bind(mock1))()
+    mock1 = null
+    mock2 = await startMock({ port: 0 })
     const mockPort2 = mock2.address().port
     const edited = await rpc("edit", { id: "mock", baseURL: v1(mockPort2) })
     check("baseURL edit refetched the inventory", edited.modelCount === MODEL_IDS.length, JSON.stringify(edited))
@@ -312,25 +133,10 @@ async function main() {
     // --- Offline restore: re-add, cold-restart the serve, state comes back.
     await rpc("connect", { name: "Mock", baseURL: v1(mockPort2), key: KEY })
     await stopServe(serve)
+    serve = null
     const restartPort = await freePort()
     serve = spawnServe(sandbox, restartPort)
-    const restartBase = `http://127.0.0.1:${restartPort}`
-    const restartApi = async (method, requestPath, body) => {
-      const response = await fetch(`${restartBase}${requestPath}`, {
-        method,
-        headers: {
-          authorization: AUTH,
-          ...(body === undefined ? {} : { "content-type": "application/json" }),
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      })
-      const text = await response.text()
-      let json = null
-      try {
-        json = text.length > 0 ? JSON.parse(text) : null
-      } catch {}
-      return { status: response.status, json, text }
-    }
+    const restartApi = makeApi(`http://127.0.0.1:${restartPort}`)
     const restartRpc = async (method, input = {}) => {
       const { status, json, text } = await restartApi("POST", `/api/rpc/custom-provider/${method}`, { input })
       if (status >= 400) throw new StepFailure(`rpc ${method} → HTTP ${status}: ${text.slice(0, 300)}`)
@@ -357,7 +163,7 @@ async function main() {
   // the serve) would otherwise keep node alive. Exit explicitly — and note
   // the PASS print must come AFTER the finally above: process.exit inside
   // the try would skip teardown entirely (verified: the serve survived).
-  console.log(`\nE2E PASSED (${checks} checks)`)
+  console.log(`\nE2E PASSED (${checkCount()} checks)`)
   process.exit(0)
 }
 

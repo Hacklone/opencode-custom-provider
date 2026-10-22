@@ -162,6 +162,7 @@ npm install          # once
 npm run typecheck    # tsc --noEmit — must be clean
 npm test             # vitest + 100% coverage gate
 npm run e2e          # server-level e2e against a real opencode serve
+npm run e2e:tui      # TUI-level e2e: drives a real TUI via termwright
 ```
 
 ## Server-level e2e (`scripts/e2e.mjs`)
@@ -190,6 +191,25 @@ npm run e2e          # server-level e2e against a real opencode serve
   settlement poll is the "plugin loaded" proof, not `/api/plugin`.
 - The rpc route body is `{"input": …}`; a missing input must serialize as
   `{}` (JSON.stringify drops undefined keys; a bare `{}` body is rejected).
+
+## TUI-level e2e (`scripts/e2e-tui.mjs`)
+
+- Drives a REAL TUI through the `/custom-provider` dialog flows with
+  [termwright](https://github.com/fcoury/termwright) (`cargo install
+  termwright`): add (name → base URL → key), edit (rename), no-op edit
+  ("Nothing to change"), refresh, remove (confirm dialog + leftover-key
+  note) — asserting screen text via `wait_for_text` and server state via
+  HTTP between steps.
+- **The CLI needs the sandbox directory as an explicit argument**:
+  `opencode --server <url> <dir>`. Location discovery otherwise falls back
+  to the home directory and the local `.opencode/plugins` TUI plugin never
+  loads (the palette shows "No matching commands").
+- **The CLI needs `--server` + `OPENCODE_PASSWORD`**: without it, service
+  discovery can land on the user's global service (its provider/model state
+  showed through a fresh sandbox otherwise).
+- Dialog navigation: arrow keys for selects (the action select has no
+  search callback); prefilled prompt values are cleared with repeated
+  Backspace; never use fixed sleeps — `wait_for_text` everywhere.
 
 Live smoke test: copy `src/` into a sandbox project's
 `.opencode/plugins/custom-provider/` keeping the root `index.ts` shim (local

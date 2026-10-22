@@ -23,7 +23,8 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "e2e": "node scripts/e2e.mjs"
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:tui": "node scripts/e2e-tui.mjs"
   },
   "dependencies": {
     "@opencode/plugin": "2.0.32",

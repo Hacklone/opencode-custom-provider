@@ -122,6 +122,13 @@ data directory — your environment is never touched), and drives the full
 provider lifecycle over the server API with hard assertions, including a real
 chat round-trip and an offline-restore restart.
 
+Two e2e layers run against real OpenCode processes (both isolated from your
+environment via a throwaway sandbox, its own database, and an in-process mock
+endpoint): `npm run e2e` drives the server API through the full provider
+lifecycle, and `npm run e2e:tui` drives a real TUI through the
+`/custom-provider` dialogs via [termwright](https://github.com/fcoury/termwright)
+(needs `cargo install termwright`).
+
 A local OpenAI-compatible mock endpoint lives at `scripts/mock-llm/server.mjs`
 (`node scripts/mock-llm/server.mjs` → `http://127.0.0.1:8991/v1`, key
 `sk-mock-1234`, models `mock-mini` / `mock-large` / `mock-coder`). Every chat

@@ -1,41 +1,29 @@
 # @coool/opencode-custom-provider
 
-An [OpenCode](https://opencode.ai) plugin that registers your own
-OpenAI-compatible endpoints as providers — no config files, everything from
-the TUI or the web UI.
+Point OpenCode at your own OpenAI-compatible endpoint — a llama.cpp server,
+vLLM, LiteLLM, an internal gateway — and its models show up in the `/models`
+picker like any built-in provider.
+
+Config-file routes exist: `opencode.json` supports custom providers. But that
+means hand-editing JSON, managing the API key yourself, and restarting when
+you change something. This plugin does it from inside OpenCode, in either
+interface, and stores the key in OpenCode's safe store where keys belong.
+
+It works like this: you give the plugin a base URL. It calls `GET /v1/models`
+on that endpoint, publishes every model it finds, and keeps the URL. No config
+files are written; the registration lives in memory and is rebuilt on startup
+from plugin storage — so it survives restarts without ever touching your
+`opencode.json`.
 
 ```
-❯ /web-custom-provider add id=llama name="My LlamaBox" base=http://127.0.0.1:8080/v1
-  ✓ llama registered — 4 models loaded from /v1/models
-❯ /models        # llama/* now appears in the picker
+$ /web-custom-provider add id=llama name="My LlamaBox" base=http://127.0.0.1:8080/v1
+
+Custom providers:
+- llama (My LlamaBox) → http://127.0.0.1:8080/v1 · 4 models · credential saved
 ```
 
-## What you get
-
-- **`/custom-provider`** — guided dialogs in the TUI (in the web UI:
-  `/web-custom-provider`, see below). Add, edit, remove, and list custom
-  providers.
-- **Safe-store credentials** — API keys are saved through OpenCode's
-  integration API, so they show up in `/connect` and `opencode auth list`
-  alongside every other provider. Rotating or re-entering a key is done in the
-  built-in `/connect` dialog — it takes effect immediately (verified: OpenCode
-  resolves the integration credential at request time). Keyless endpoints
-  (local inference servers) work too — just leave the key empty.
-- **Automatic inventory** — on connect (and on a base-URL edit, or an explicit
-  refresh) the plugin calls `GET {baseURL}/v1/models` and publishes each
-  discovered model under `<providerID>/<modelID>`. The fetch is also your
-  validation: a bad URL or wrong key aborts the save with the endpoint's error.
-- **Model selection is OpenCode's job** — discovered models appear in the
-  built-in `/models` picker (verified). Adding a provider automatically makes
-  its first model the catalog default; switch or change it with `/models`
-  like any other model.
-- **Offline-tolerant restore** — providers are restored from plugin storage at
-  startup with zero network calls; the last-known inventory stays visible
-  until a refresh succeeds.
-
-Discovered models use OpenCode's uncatalogued-model fallbacks: tool support,
-text + image input, text output, 200k context, 32k output. No per-model
-overrides in v1.
+From here on, `llama/<model>` behaves exactly like `anthropic/<model>`: pick it
+in `/models`, make it the default, chat with it.
 
 ## Install
 
@@ -43,69 +31,67 @@ overrides in v1.
 opencode plugin add @coool/opencode-custom-provider
 ```
 
-Or link this directory into `.opencode/plugins/custom-provider/` in your
-project (local discovery loads `<dir>/index.ts` directly).
+To run it from a local checkout instead: clone this repo, `npm install` inside
+it, then link the checkout into your project:
+
+```sh
+ln -s /path/to/opencode-custom-provider .opencode/plugins/custom-provider
+```
+
+(The symlink layout matters — OpenCode loads `<dir>/index.ts` directly from
+`.opencode/plugins/`, and the plugin resolves its dependencies from its own
+`node_modules`.)
 
 ## Usage
 
-### TUI (dialogs)
+**In the TUI**, run `/custom-provider`. A dialog lists your providers; pick
+"Add new provider" and answer three prompts — name, base URL, API key. Leave
+the key empty for endpoints that don't need one. Picking an existing provider
+offers Edit, Refresh (re-fetch the inventory), and Remove.
 
-- `/custom-provider` — lists your custom providers directly (pick one to edit,
-  refresh the inventory, or remove, or choose **Add new provider**), then
-  answers the prompts; empty key = keyless.
-- `/models`, `/connect` — the built-in dialogs handle model selection and API
-  key rotation for custom providers, exactly as for built-in ones.
-
-### Web UI / server commands
-
-The server command name differs from the TUI slash name on purpose — a
-same-named pair appears twice in the TUI palette (verified empirically).
+**In the web UI**, or any client that submits commands, use
+`/web-custom-provider`:
 
 ```
-/web-custom-provider                                        → status list
+/web-custom-provider                                                   → list
 /web-custom-provider add id=<id> name=<Name> base=<url> [key=<key>]
 /web-custom-provider edit id=<id> [name=<Name>] [base=<url>]
 /web-custom-provider remove id=<id>
 ```
 
-Values containing spaces must be double-quoted: `name="My Provider"`.
+Values with spaces need double quotes: `name="My Provider"`. The `id` is
+slugged and must be unique; it can't be changed later. Editing the base URL
+re-fetches the inventory right away. The add command is where a wrong key or
+unreachable URL gets caught: the save is aborted with the endpoint's error and
+nothing is stored.
 
-Provider IDs are slugged and must be unique; the ID is immutable after
-creation. Editing the base URL re-fetches the inventory immediately. A failed
-re-fetch keeps the stored inventory and reports the error — the provider never
-disappears because an endpoint hiccuped. The failure is also recorded as the
-provider's health and shown in every provider list
-(`LAST REFRESH FAILED: <reason>`) until a refresh succeeds.
+The web command has a different name than the TUI slash command on purpose —
+OpenCode shows both in the palette when the names collide, so one of them has
+to give.
 
-### Example
+## Model selection and keys are not this plugin's job
 
-```
-/web-custom-provider add id=openrouter name=OpenRouter base=https://openrouter.ai/api/v1 key=sk-or-...
-/models        # openrouter/* appears in the built-in picker, first model is the default
-```
+Discovered models appear in the built-in `/models` picker, and the first model
+of a newly added provider becomes the default until you change it. Keys are
+saved through OpenCode's integration API, so your custom provider shows up in
+`/connect` and `opencode auth list` like every native provider — including key
+rotation, which takes effect on the next request without re-registering
+anything.
 
-## How credentials work
+Two things to know:
 
-Keys are written to OpenCode's safe store via the integration API
-(`ctx.integration.connect.key`) and mirrored into plugin storage as a
-fallback. Resolution prefers the integration connection, then the mirror.
-Verified live: OpenCode resolves the integration credential at **request
-time** via `Provider.Info.integrationID`, and an active integration
-credential wins over the `settings.apiKey` embedded at registration — so a
-key rotated in `/connect` takes effect immediately without re-registering.
-Status output only ever shows booleans — key material never appears in logs
-or messages. See `docs/adr/0001-credentials-in-safe-store.md` for the
-trade-offs.
+- The plugin never talks to your endpoint in the background. The inventory is
+  fetched when you add a provider, change its base URL, or ask for a refresh.
+  If a refresh or re-fetch fails, the stored inventory stays and the failure
+  is flagged in every provider list until the next successful refresh.
+- Removing a provider cannot remove its key: the plugin API can write
+  credentials but not delete them. The provider's `/connect` entry stays so
+  you can delete the account there (or with `opencode auth logout <id>`); the
+  plugin tells you this when you remove a provider that had a key.
 
-Removing a provider cannot delete its safe-store credential (the plugin API
-offers no credential removal), so when a key exists the integration
-registration is kept and you are told how to clean up: delete the account in
-the built-in `/connect` dialog (under "custom-provider: <id>") or run
-`opencode auth logout <id>`. Each key save accumulates one credential entry
-(native account behavior).
-
-Inventory is fetched **only on demand** (connect, base-URL edit, refresh) —
-the plugin never polls your endpoints in the background.
+Discovered models get OpenCode's default assumptions for uncatalogued models:
+tools supported, text and image input, text output, 200k context, 32k output.
+There is no per-model configuration in v1.
 
 ## Development
 
@@ -113,33 +99,20 @@ the plugin never polls your endpoints in the background.
 npm install
 npm run typecheck    # tsc --noEmit
 npm test             # vitest with a 100% coverage gate
-npm run e2e          # server-level e2e against a real opencode serve
+npm run e2e          # server API, driven against a real opencode serve
+npm run e2e:tui      # the TUI dialogs, driven via termwright
 ```
 
-`npm run e2e` boots the mock LLM, builds a throwaway sandbox with the plugin
-linked in, spawns a real `opencode serve` (with its own isolated database and
-data directory — your environment is never touched), and drives the full
-provider lifecycle over the server API with hard assertions, including a real
-chat round-trip and an offline-restore restart.
+Both e2e layers boot a mock OpenAI-compatible endpoint in-process, build a
+throwaway sandbox with its own isolated database, spawn a real OpenCode
+process, and assert behavior end to end — including a real chat round-trip
+and a restart with the endpoint offline. Your OpenCode installation is never
+touched. `scripts/mock-llm/server.mjs` can also be run standalone
+(`http://127.0.0.1:8991/v1`, key `sk-mock-1234`) if you want a harmless
+endpoint to try the plugin against.
 
-Two e2e layers run against real OpenCode processes (both isolated from your
-environment via a throwaway sandbox, its own database, and an in-process mock
-endpoint): `npm run e2e` drives the server API through the full provider
-lifecycle, and `npm run e2e:tui` drives a real TUI through the
-`/custom-provider` dialogs via [termwright](https://github.com/fcoury/termwright)
-(needs `cargo install termwright`).
-
-A local OpenAI-compatible mock endpoint lives at `scripts/mock-llm/server.mjs`
-(`node scripts/mock-llm/server.mjs` → `http://127.0.0.1:8991/v1`, key
-`sk-mock-1234`, models `mock-mini` / `mock-large` / `mock-coder`). Every chat
-reply names the model that served it (`MOCK-OK via mock-large`) in both the
-`model` field and the visible reply text, so a round-trip through a registered
-custom provider proves which model ran. Its behavior is covered by
-`test/mock-server.test.ts` (in-process server on an ephemeral port).
-
-Architecture and conventions live in `AGENTS.md`; domain vocabulary in
-`GLOSSARY.md`. Conventions are cloned from
-[`@coool/opencode-decision-mode`](https://github.com/coool/opencode-decision-mode).
+Architecture and conventions live in `AGENTS.md`. This plugin follows the same
+structure as [`@coool/opencode-decision-mode`](https://github.com/coool/opencode-decision-mode).
 
 ## License
 

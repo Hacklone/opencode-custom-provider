@@ -21,7 +21,7 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { errorMessage } from "./domain/provider-types.ts"
 import { editSubmission } from "./domain/provider-edit.ts"
-import { CustomProviderRpc, type ProviderStatus } from "../rpc.ts"
+import { CustomProviderRpc, type ProviderStatus } from "./rpc.ts"
 
 export default Plugin.define({
   id: "custom-provider",
